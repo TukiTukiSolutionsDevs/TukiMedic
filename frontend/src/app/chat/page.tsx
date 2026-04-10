@@ -1,10 +1,13 @@
 'use client'
 
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useChatWS } from '@/hooks/use-chat-ws'
 import { useDocumentUpload } from '@/hooks/use-document-upload'
 import { useChatStore, type ConnectionStatus } from '@/store/chat-store'
+import { useAuthStore } from '@/store/auth-store'
 import { Button } from '@/components/ui/button'
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 const AGENT_LABELS: Record<string, string> = {
   triage: 'Triage',
@@ -38,6 +41,7 @@ function ConnectionBadge({ status }: { status: ConnectionStatus }) {
 export default function ChatPage() {
   const { sendMessage, connectionStatus } = useChatWS()
   const { uploadDocument, isUploading, uploadError, lastUploadedDoc } = useDocumentUpload()
+  const { accessToken } = useAuthStore()
   const {
     messages,
     streamingMessage,
@@ -47,8 +51,31 @@ export default function ChatPage() {
   } = useChatStore()
 
   const [input, setInput] = useState('')
+  const [exportingPdf, setExportingPdf] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleExportPdf = useCallback(async () => {
+    if (!currentCaseId || !accessToken) return
+    setExportingPdf(true)
+    try {
+      const r = await fetch(`${API}/api/v1/cases/${currentCaseId}/export/pdf`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (!r.ok) throw new Error('Error al generar PDF')
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `case_${currentCaseId}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setExportingPdf(false)
+    }
+  }, [currentCaseId, accessToken])
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -77,7 +104,19 @@ export default function ChatPage() {
       {/* Header */}
       <header className="flex h-14 items-center justify-between border-b px-4">
         <h2 className="font-semibold">Nueva consulta</h2>
-        <ConnectionBadge status={connectionStatus} />
+        <div className="flex items-center gap-3">
+          {currentCaseId && (
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              title="Exportar caso como PDF"
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+            >
+              {exportingPdf ? '⏳ Generando…' : '📄 Exportar PDF'}
+            </button>
+          )}
+          <ConnectionBadge status={connectionStatus} />
+        </div>
       </header>
 
       {/* Messages area */}

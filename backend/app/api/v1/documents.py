@@ -14,6 +14,7 @@ from app.core.dependencies import get_current_user
 from app.core.storage import storage_client
 from app.models.document import DocumentModel, LabValueModel
 from app.models.user import User
+from app.services.audit import log_action
 from app.services.document_processor import _process_document_bg
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -68,11 +69,21 @@ async def upload_document(
         processing_status="pending",
     )
     db.add(doc)
-    await db.commit()
+    await db.flush()   # assign ID without committing
     await db.refresh(doc)
 
     # Kick off async processing pipeline (OCR → classify → extract)
     background_tasks.add_task(_process_document_bg, str(doc.id), file_data, kind.mime, settings.OPENAI_API_KEY)
+
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="document_upload",
+        entity_type="document",
+        entity_id=doc.id,
+        details={"filename": file.filename, "mime": kind.mime, "size": len(file_data)},
+    )
+    await db.commit()  # single commit: document + audit log
 
     return {
         "id": str(doc.id),

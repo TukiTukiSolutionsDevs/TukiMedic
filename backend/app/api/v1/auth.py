@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,12 +19,13 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.services.audit import log_action
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(request: RegisterRequest, req: Request, db: AsyncSession = Depends(get_db)):
     # Check if email exists
     result = await db.execute(select(User).where(User.email == request.email))
     if result.scalar_one_or_none():
@@ -39,6 +40,11 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     await db.commit()
     await db.refresh(user)
 
+    ip = req.client.host if req.client else None
+    await log_action(db, user_id=user.id, action="register", entity_type="user",
+                     entity_id=user.id, ip_address=ip)
+    await db.commit()
+
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id)}),
         refresh_token=create_refresh_token({"sub": str(user.id)}),
@@ -46,7 +52,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(request: LoginRequest, req: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == request.email))
     user = result.scalar_one_or_none()
 
@@ -55,6 +61,11 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
+
+    ip = req.client.host if req.client else None
+    await log_action(db, user_id=user.id, action="login", entity_type="user",
+                     entity_id=user.id, ip_address=ip)
+    await db.commit()
 
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id)}),

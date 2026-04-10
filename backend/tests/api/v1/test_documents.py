@@ -131,8 +131,8 @@ async def test_upload_valid_pdf(client, mock_db):
     assert data["processing_status"] == "pending"
     assert data["original_filename"] == "lab_result.pdf"
     assert data["mime_type"] == "application/pdf"
-    mock_db.add.assert_called_once()
-    mock_db.commit.assert_called_once()
+    assert mock_db.add.call_count >= 1  # doc + audit log entry
+    mock_db.commit.assert_called_once()  # single commit: doc + audit
 
 
 async def test_upload_valid_image(client, mock_db):

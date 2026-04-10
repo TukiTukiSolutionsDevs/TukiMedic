@@ -4,6 +4,7 @@ from app.models.message import Message
 from app.models.clinical_fact import ClinicalFactModel
 from app.models.document import DocumentModel, LabValueModel
 from app.models.patient import PatientTimelineEvent, PatientProfile, KnowledgeBaseChunk
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "PatientTimelineEvent",
     "PatientProfile",
     "KnowledgeBaseChunk",
+    "AuditLog",
 ]
