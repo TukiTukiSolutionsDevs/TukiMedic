@@ -7,7 +7,7 @@
 
 | Fase | Estado | Progreso |
 |------|--------|----------|
-| Fase 0: Setup | 🟡 En curso | 0/6 |
+| Fase 0: Setup | 🟡 En curso | 4/6 |
 | Fase 1: Core | ⚪ Pendiente | 0/13 |
 | Fase 2: Documentos | ⚪ Pendiente | 0/5 |
 | Fase 3: Especialidades | ⚪ Pendiente | 0/5 |
@@ -19,27 +19,27 @@
 ## Fase 0: Setup e Infraestructura (1-2 semanas)
 
 ### 0.1 Repositorio y estructura
-- [ ] Crear monorepo con estructura de carpetas
-- [ ] Configurar TypeScript para frontend
-- [ ] Configurar Python + Poetry para backend
-- [ ] Configurar linters (ESLint, Prettier, Black, Ruff)
+- [x] Crear monorepo con estructura de carpetas
+- [x] Configurar TypeScript para frontend
+- [x] Configurar Python + Poetry para backend
+- [x] Configurar linters (ESLint, Prettier, Black, Ruff)
 - [ ] Configurar pre-commit hooks
 
 ### 0.2 Frontend base
-- [ ] Inicializar Next.js 15 con App Router
-- [ ] Configurar Tailwind CSS + shadcn/ui
+- [x] Inicializar Next.js 15 con App Router
+- [x] Configurar Tailwind CSS + shadcn/ui
 - [ ] Crear layout base (sidebar + main area)
 - [ ] Configurar Zustand store
 - [ ] Crear páginas placeholder
 
 ### 0.3 Backend base
-- [ ] Inicializar FastAPI con estructura modular
+- [x] Inicializar FastAPI con estructura modular
 - [ ] Configurar SQLAlchemy async + Alembic
 - [ ] Configurar Redis + S3/MinIO clients
-- [ ] Health check endpoint
+- [x] Health check endpoint
 
 ### 0.4 Base de datos
-- [ ] Docker Compose (PostgreSQL + pgvector + Redis + MinIO)
+- [x] Docker Compose (PostgreSQL + pgvector + Redis + MinIO)
 - [ ] Migración inicial (users, cases, messages)
 
 ### 0.5 Auth
@@ -49,7 +49,7 @@
 
 ### 0.6 Deploy pipeline
 - [ ] Dockerfiles (frontend + backend)
-- [ ] Docker Compose para dev local
+- [x] Docker Compose para dev local
 - [ ] CI pipeline básico
 
 ---
