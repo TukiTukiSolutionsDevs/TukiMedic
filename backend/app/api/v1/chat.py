@@ -29,6 +29,7 @@ from app.core.database import async_session
 from app.core.graph_cache import get_or_build_graph
 from app.core.redis import redis_client
 from app.core.security import decode_token
+from app.memory import append_messages, load_messages
 from app.models.user import User
 from app.orchestrator.graph import create_initial_state
 
@@ -202,14 +203,27 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 continue  # keep connection open
 
             # Graph execution
+            history = await load_messages(str(user.id), case_id_str)
             graph = await get_or_build_graph(str(user.id), settings.OPENAI_API_KEY)
             state = create_initial_state(case_id_str, str(user.id), content)
+            state["messages"] = history  # inject conversation history
             config = {"configurable": {"thread_id": case_id_str}}
 
+            response_text: str | None = None
             try:
                 async with asyncio.timeout(GRAPH_TIMEOUT):
                     async for event in graph.astream_events(state, config, version="v2"):
                         await _handle_event(websocket, event, case_id_str)
+                        # Capture synthesized response for memory persistence
+                        if (
+                            event.get("event") == "on_chain_end"
+                            and event.get("name") == "synthesizer"
+                        ):
+                            response_text = (
+                                event.get("data", {})
+                                .get("output", {})
+                                .get("synthesized_response", "")
+                            )
             except asyncio.TimeoutError:
                 await websocket.send_json(
                     {
@@ -230,6 +244,10 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 )
                 await websocket.close(code=1011)
                 break
+
+            # Persist exchange to memory (only on successful graph completion)
+            if response_text is not None:
+                await append_messages(str(user.id), case_id_str, content, response_text)
 
     finally:
         stop_event.set()
