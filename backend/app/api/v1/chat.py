@@ -30,6 +30,8 @@ from app.core.graph_cache import get_or_build_graph
 from app.core.redis import redis_client
 from app.core.security import decode_token
 from app.memory import append_messages, load_messages, retrieve_relevant_facts, store_facts
+from app.memory.pg_timeline import get_patient_timeline, get_or_create_profile, store_timeline_event
+from app.memory.kb_retriever import retrieve_kb_context
 from app.services.document_context import get_document_context, message_references_documents
 from app.models.user import User
 from app.orchestrator.graph import create_initial_state
@@ -219,6 +221,24 @@ async def websocket_chat(websocket: WebSocket) -> None:
             except Exception:
                 pass  # L2 failure must not block chat
 
+            # Level 3 — inject patient timeline + profile (graceful degradation)
+            try:
+                async with async_session() as db:
+                    state["patient_timeline"] = await get_patient_timeline(db, str(user.id))
+                    state["patient_profile"] = await get_or_create_profile(db, str(user.id))
+                    await db.commit()
+            except Exception:
+                pass  # L3 failure must not block chat
+
+            # Level 3 — inject KB context via semantic search (graceful degradation)
+            try:
+                async with async_session() as db:
+                    state["kb_context"] = await retrieve_kb_context(
+                        db, content, settings.OPENAI_API_KEY
+                    )
+            except Exception:
+                pass  # KB failure must not block chat
+
             # Level 3 — inject document context if message references docs (graceful degradation)
             if message_references_documents(content):
                 try:
@@ -282,6 +302,21 @@ async def websocket_chat(websocket: WebSocket) -> None:
             # Persist exchange to memory (only on successful graph completion)
             if response_text is not None:
                 await append_messages(str(user.id), case_id_str, content, response_text)
+
+            # Level 3 — store timeline event for completed consultation (graceful degradation)
+            if response_text is not None:
+                try:
+                    async with async_session() as db:
+                        await store_timeline_event(
+                            db,
+                            str(user.id),
+                            case_id_str,
+                            "consultation",
+                            content[:500],  # brief summary from user message
+                        )
+                        await db.commit()
+                except Exception:
+                    pass  # timeline store failure must not block chat
 
             # Level 2 — persist extracted clinical facts to PostgreSQL (graceful degradation)
             try:

@@ -44,6 +44,30 @@ class BaseSpecialistAgent(ABC):
             flags = ", ".join(state["red_flags"])
             parts.append(f"\nRed flags: {flags}")
 
+        # Level-3 memory: patient profile (allergies, medications, conditions)
+        profile = state.get("patient_profile") or {}
+        if profile:
+            profile_lines = []
+            if profile.get("allergies"):
+                profile_lines.append(f"  - Alergias: {', '.join(profile['allergies'])}")
+            if profile.get("active_medications"):
+                profile_lines.append(f"  - Medicamentos activos: {', '.join(profile['active_medications'])}")
+            if profile.get("chronic_conditions"):
+                profile_lines.append(f"  - Condiciones crónicas: {', '.join(profile['chronic_conditions'])}")
+            if profile.get("blood_type"):
+                profile_lines.append(f"  - Grupo sanguíneo: {profile['blood_type']}")
+            if profile.get("age"):
+                profile_lines.append(f"  - Edad: {profile['age']}")
+            if profile.get("sex"):
+                profile_lines.append(f"  - Sexo: {profile['sex']}")
+            if profile_lines:
+                parts.append("\nPerfil del paciente:\n" + "\n".join(profile_lines))
+
+        # Knowledge Base: relevant medical literature context
+        kb_context = state.get("kb_context") or ""
+        if kb_context:
+            parts.append(f"\n## Contexto Médico Relevante (Knowledge Base)\n{kb_context}")
+
         return "\n".join(parts)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:

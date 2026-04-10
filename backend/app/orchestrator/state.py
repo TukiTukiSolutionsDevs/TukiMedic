@@ -65,6 +65,13 @@ class ClinicalCaseState(TypedDict):
     # Shape: {"documents": [{doc_type, filename, ocr_preview}], "lab_values": [{test_name, ...}]}
     document_context: dict
 
+    # Level-3 memory (Phase 4) — patient timeline + profile injected pre-graph
+    patient_timeline: list[dict]   # ordered events: [{event_type, summary, details, occurred_at}]
+    patient_profile: dict          # {allergies, active_medications, chronic_conditions, blood_type, age, sex}
+
+    # Knowledge Base context (Phase 4) — RAG results injected pre-graph
+    kb_context: str                # formatted string with [source: title] headers
+
     # Metadata
     created_at: str
     updated_at: str

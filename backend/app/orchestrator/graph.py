@@ -76,6 +76,9 @@ def create_initial_state(case_id: str, user_id: str, message: str) -> ClinicalCa
         "current_node": "",
         "force_close": False,
         "document_context": {},
+        "patient_timeline": [],
+        "patient_profile": {},
+        "kb_context": "",
         "created_at": "",
         "updated_at": "",
     }
