@@ -1,0 +1,51 @@
+# Mapa de síntomas → especialidades con pesos base
+# Usados como hint inicial para el LLM — los pesos son refinados por el modelo.
+# Threshold de activación: >= 0.4
+
+dolor_abdominal:
+  gastroenterologia: 0.8
+  medicina_interna: 0.6
+  ginecologia: 0.4
+  cirugia: 0.3
+  urologia: 0.2
+
+fatiga_cronica:
+  medicina_interna: 0.8
+  endocrinologia: 0.7
+  hematologia: 0.5
+  psiquiatria: 0.4
+
+cefalea:
+  neurologia: 0.7
+  medicina_general: 0.6
+  oftalmologia: 0.3
+
+dolor_toracico:
+  cardiologia: 0.9
+  neumologia: 0.6
+  medicina_interna: 0.5
+
+problemas_piel:
+  dermatologia: 0.9
+  medicina_interna: 0.3
+
+dolor_articular:
+  traumatologia: 0.8
+  reumatologia: 0.7
+  medicina_interna: 0.4
+
+sintomas_emocionales:
+  psiquiatria: 0.8
+  medicina_general: 0.4
+
+sintomas_respiratorios:
+  neumologia: 0.8
+  medicina_interna: 0.5
+
+sintomas_urinarios:
+  urologia: 0.8
+  nefrologia: 0.5
+
+sintomas_ginecologicos:
+  ginecologia: 0.9
+  obstetricia: 0.5
