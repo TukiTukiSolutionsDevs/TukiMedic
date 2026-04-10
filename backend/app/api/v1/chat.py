@@ -29,7 +29,7 @@ from app.core.database import async_session
 from app.core.graph_cache import get_or_build_graph
 from app.core.redis import redis_client
 from app.core.security import decode_token
-from app.memory import append_messages, load_messages
+from app.memory import append_messages, load_messages, retrieve_relevant_facts, store_facts
 from app.models.user import User
 from app.orchestrator.graph import create_initial_state
 
@@ -207,9 +207,21 @@ async def websocket_chat(websocket: WebSocket) -> None:
             graph = await get_or_build_graph(str(user.id), settings.OPENAI_API_KEY)
             state = create_initial_state(case_id_str, str(user.id), content)
             state["messages"] = history  # inject conversation history
+
+            # Level 2 — inject relevant clinical facts from PostgreSQL (graceful degradation)
+            try:
+                async with async_session() as db:
+                    relevant_facts = await retrieve_relevant_facts(
+                        db, str(user.id), content, settings.OPENAI_API_KEY
+                    )
+                    state["extracted_facts"] = relevant_facts
+            except Exception:
+                pass  # L2 failure must not block chat
+
             config = {"configurable": {"thread_id": case_id_str}}
 
             response_text: str | None = None
+            captured_facts: list = []
             try:
                 async with asyncio.timeout(GRAPH_TIMEOUT):
                     async for event in graph.astream_events(state, config, version="v2"):
@@ -223,6 +235,16 @@ async def websocket_chat(websocket: WebSocket) -> None:
                                 event.get("data", {})
                                 .get("output", {})
                                 .get("synthesized_response", "")
+                            )
+                        # Capture extracted clinical facts from anamnesis node
+                        if (
+                            event.get("event") == "on_chain_end"
+                            and event.get("name") == "anamnesis"
+                        ):
+                            captured_facts = (
+                                event.get("data", {})
+                                .get("output", {})
+                                .get("extracted_facts", [])
                             )
             except asyncio.TimeoutError:
                 await websocket.send_json(
@@ -248,6 +270,21 @@ async def websocket_chat(websocket: WebSocket) -> None:
             # Persist exchange to memory (only on successful graph completion)
             if response_text is not None:
                 await append_messages(str(user.id), case_id_str, content, response_text)
+
+            # Level 2 — persist extracted clinical facts to PostgreSQL (graceful degradation)
+            try:
+                if captured_facts:
+                    facts_to_store = [
+                        f.model_dump() if hasattr(f, "model_dump") else f
+                        for f in captured_facts
+                    ]
+                    async with async_session() as db:
+                        await store_facts(
+                            db, str(user.id), case_id_str, facts_to_store, settings.OPENAI_API_KEY
+                        )
+                        await db.commit()
+            except Exception:
+                pass  # L2 failure must not block chat
 
     finally:
         stop_event.set()

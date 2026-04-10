@@ -26,7 +26,8 @@ dependencies = [
     "psycopg2-binary (>=2.9.11,<3.0.0)",
     "email-validator (>=2.3.0,<3.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
-    "cachetools (>=5.3)"
+    "cachetools (>=5.3)",
+    "pgvector (>=0.3)"
 ]
 
 
