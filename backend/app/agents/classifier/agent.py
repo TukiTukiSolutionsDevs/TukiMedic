@@ -8,7 +8,7 @@ Model: GPT-4o, Temperature: 0.2.
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.classifier.schemas import ClassificationResult
 from app.agents.classifier.prompts import CLASSIFIER_SYSTEM_PROMPT
 from app.agents.classifier.tools import format_specialty_hints

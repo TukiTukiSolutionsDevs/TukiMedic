@@ -9,7 +9,7 @@ import json
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.medical_board.schemas import MedicalBoardResult
 from app.agents.medical_board.prompts import MEDICAL_BOARD_PROMPT
 

@@ -7,7 +7,7 @@ violations and can observe, flag, modify, or interrupt the clinical flow.
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.guardrail.schemas import GuardrailCheck, InterruptionLevel
 from app.agents.guardrail.prompts import GUARDRAIL_SYSTEM_PROMPT
 

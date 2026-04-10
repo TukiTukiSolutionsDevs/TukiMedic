@@ -9,7 +9,7 @@ import json
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.synthesizer.schemas import SynthesizedResponse
 from app.agents.synthesizer.prompts import SYNTHESIZER_SYSTEM_PROMPT
 

@@ -7,7 +7,7 @@ Usa GPT-4o-mini por velocidad y costo. Temperature 0.0 para consistencia.
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.triage.schemas import TriageResult
 from app.agents.triage.prompts import TRIAGE_SYSTEM_PROMPT
 from app.agents.triage.tools import red_flag_checker

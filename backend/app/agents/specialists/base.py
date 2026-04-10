@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 from langchain_openai import ChatOpenAI
 
-from app.orchestrator.graph import ClinicalCaseState
+from app.orchestrator.state import ClinicalCaseState
 from app.agents.specialists.schemas import SpecialistAnalysis
 
 
