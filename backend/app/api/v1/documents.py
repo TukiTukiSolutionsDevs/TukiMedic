@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.storage import storage_client
@@ -71,7 +72,7 @@ async def upload_document(
     await db.refresh(doc)
 
     # Kick off async processing pipeline (OCR → classify → extract)
-    background_tasks.add_task(_process_document_bg, str(doc.id), file_data, kind.mime)
+    background_tasks.add_task(_process_document_bg, str(doc.id), file_data, kind.mime, settings.OPENAI_API_KEY)
 
     return {
         "id": str(doc.id),
