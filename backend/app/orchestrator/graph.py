@@ -19,7 +19,8 @@ from app.orchestrator.state import ClinicalCaseState  # noqa: F401 (re-exported)
 from app.agents.triage import TriageAgent, triage_router
 from app.agents.anamnesis import AnamnesisAgent
 from app.agents.classifier import ClassifierAgent, classification_router
-from app.agents.specialists import GeneralMedicineAgent
+import app.agents.specialists  # noqa: F401 — triggers @register decorators
+from app.agents.specialists.dispatcher import dispatch_specialists
 from app.agents.medical_board import MedicalBoardAgent, medical_board_router
 from app.agents.devils_advocate import DevilsAdvocateAgent
 from app.agents.guardrail import GuardrailAgent
@@ -124,7 +125,6 @@ def build_graph(api_key: str) -> StateGraph:
     triage = TriageAgent(api_key=api_key)
     anamnesis = AnamnesisAgent(api_key=api_key)
     classifier = ClassifierAgent(api_key=api_key)
-    general_medicine = GeneralMedicineAgent(api_key=api_key)
     medical_board = MedicalBoardAgent(api_key=api_key)
     devils_advocate = DevilsAdvocateAgent(api_key=api_key)
     guardrail = GuardrailAgent(api_key=api_key)
@@ -137,7 +137,10 @@ def build_graph(api_key: str) -> StateGraph:
     workflow.add_node("triage", triage)
     workflow.add_node("anamnesis", anamnesis)
     workflow.add_node("classification", classifier)
-    workflow.add_node("specialists", general_medicine)  # MVP: only general medicine
+    async def specialist_node(state: ClinicalCaseState) -> dict:
+        return await dispatch_specialists(state, api_key=api_key)
+
+    workflow.add_node("specialists", specialist_node)
     workflow.add_node("medical_board", medical_board)
     workflow.add_node("devils_advocate", devils_advocate)
     workflow.add_node("guardrail", guardrail)

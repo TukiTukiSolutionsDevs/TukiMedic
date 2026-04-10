@@ -49,3 +49,33 @@ sintomas_urinarios:
 sintomas_ginecologicos:
   ginecologia: 0.9
   obstetricia: 0.5
+
+sintomas_pediatricos:
+  pediatria: 0.9
+  medicina_general: 0.5
+
+fiebre_neonatal:
+  pediatria: 1.0
+
+interaccion_medicamentos:
+  farmacologia: 0.9
+  medicina_interna: 0.4
+
+polimedicacion:
+  farmacologia: 0.9
+  medicina_interna: 0.5
+
+sintomas_metabolicos:
+  medicina_interna: 0.8
+  endocrinologia: 0.7
+
+enfermedad_cronica:
+  medicina_interna: 0.9
+
+fiebre_prolongada:
+  medicina_interna: 0.8
+  medicina_general: 0.5
+
+dolor_articular_multiple:
+  medicina_interna: 0.7
+  reumatologia: 0.8

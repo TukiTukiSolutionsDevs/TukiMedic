@@ -6,6 +6,7 @@ Provides holistic first-pass clinical analysis.
 """
 
 from app.agents.specialists.base import BaseSpecialistAgent
+from app.agents.specialists.registry import register
 
 
 GENERAL_MEDICINE_PROMPT = """Eres un médico general experimentado con más de 15 años de práctica clínica. \
@@ -37,6 +38,7 @@ SIEMPRE:
 Responde de forma estructurada siguiendo el esquema solicitado."""
 
 
+@register
 class GeneralMedicineAgent(BaseSpecialistAgent):
     """General Medicine specialist — baseline agent for all cases."""
 
