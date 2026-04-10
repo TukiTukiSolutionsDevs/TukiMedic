@@ -11,8 +11,8 @@
 | Fase 1: Core | ✅ Completa | 13/13 (278 tests) |
 | Fase 2: Documentos | ✅ Completa | 5/5 (327 tests) |
 | Fase 3: Especialidades | ✅ Completa | 5/5 (356 tests) |
-| Fase 4: Memoria + KB | 🔄 En curso | 0/3 |
-| Fase 5: Dashboard | ⚪ Pendiente | 0/1 |
+| Fase 4: Memoria + KB | ✅ Completa | 3/3 (372 tests) |
+| Fase 5: Dashboard | 🔄 En curso | 0/1 |
 
 ---
 
@@ -148,11 +148,11 @@
 
 ---
 
-## Fase 4: Memoria Nivel 3 + Knowledge Base (2-3 semanas)
+## Fase 4: Memoria Nivel 3 + Knowledge Base (2-3 semanas) ✅
 
-- [ ] Memoria clínica estructurada + timeline
-- [ ] Knowledge base (scraping MedlinePlus, VADEMECUM)
-- [ ] RAG con pgvector + compresión de contexto
+- [x] Memoria clínica estructurada + timeline (PatientTimelineEvent + PatientProfile)
+- [x] Knowledge base (MedlinePlus API + chunking + embedding storage)
+- [x] RAG con pgvector + compresión de contexto (cosine search + 1500 token limit)
 
 ---
 
