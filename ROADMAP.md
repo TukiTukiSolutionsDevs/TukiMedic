@@ -7,7 +7,7 @@
 
 | Fase | Estado | Progreso |
 |------|--------|----------|
-| Fase 0: Setup | 🟡 En curso | 4/6 |
+| Fase 0: Setup | ✅ Completa | 6/6 |
 | Fase 1: Core | ⚪ Pendiente | 0/13 |
 | Fase 2: Documentos | ⚪ Pendiente | 0/5 |
 | Fase 3: Especialidades | ⚪ Pendiente | 0/5 |
@@ -28,24 +28,24 @@
 ### 0.2 Frontend base
 - [x] Inicializar Next.js 15 con App Router
 - [x] Configurar Tailwind CSS + shadcn/ui
-- [ ] Crear layout base (sidebar + main area)
-- [ ] Configurar Zustand store
-- [ ] Crear páginas placeholder
+- [x] Crear layout base (sidebar + main area)
+- [x] Configurar Zustand store
+- [x] Crear páginas placeholder (login, chat, settings)
 
 ### 0.3 Backend base
 - [x] Inicializar FastAPI con estructura modular
-- [ ] Configurar SQLAlchemy async + Alembic
-- [ ] Configurar Redis + S3/MinIO clients
+- [x] Configurar SQLAlchemy async + Alembic
+- [x] Configurar Redis + S3/MinIO clients
 - [x] Health check endpoint
 
 ### 0.4 Base de datos
 - [x] Docker Compose (PostgreSQL + pgvector + Redis + MinIO)
-- [ ] Migración inicial (users, cases, messages)
+- [x] Migración inicial (users, cases, messages)
 
 ### 0.5 Auth
-- [ ] Registro + Login con JWT
-- [ ] Refresh token rotation
-- [ ] Middleware de auth (backend) + Auth context (frontend)
+- [x] Registro + Login con JWT
+- [x] Refresh token rotation
+- [x] Middleware de auth (backend) + Auth context (frontend)
 
 ### 0.6 Deploy pipeline
 - [ ] Dockerfiles (frontend + backend)
