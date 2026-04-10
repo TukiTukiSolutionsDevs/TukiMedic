@@ -74,6 +74,7 @@ def create_initial_state(case_id: str, user_id: str, message: str) -> ClinicalCa
         "max_loops": LOOP_CONFIG["max_loops"],
         "current_node": "",
         "force_close": False,
+        "document_context": {},
         "created_at": "",
         "updated_at": "",
     }

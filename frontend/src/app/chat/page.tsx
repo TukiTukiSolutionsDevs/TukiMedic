@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useChatWS } from '@/hooks/use-chat-ws'
+import { useDocumentUpload } from '@/hooks/use-document-upload'
 import { useChatStore, type ConnectionStatus } from '@/store/chat-store'
 import { Button } from '@/components/ui/button'
 
@@ -36,6 +37,7 @@ function ConnectionBadge({ status }: { status: ConnectionStatus }) {
 
 export default function ChatPage() {
   const { sendMessage, connectionStatus } = useChatWS()
+  const { uploadDocument, isUploading, uploadError, lastUploadedDoc } = useDocumentUpload()
   const {
     messages,
     streamingMessage,
@@ -46,6 +48,14 @@ export default function ChatPage() {
 
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    uploadDocument(file, currentCaseId ?? undefined)
+    e.target.value = ''
+  }
 
   // Auto-scroll to bottom on new content
   useEffect(() => {
@@ -119,7 +129,52 @@ export default function ChatPage() {
 
       {/* Input area */}
       <div className="border-t p-4">
+        {/* Upload status feedback */}
+        {isUploading && (
+          <p className="mb-2 text-xs text-muted-foreground">📎 Subiendo archivo...</p>
+        )}
+        {uploadError && (
+          <p className="mb-2 text-xs text-red-500">⚠️ {uploadError}</p>
+        )}
+        {lastUploadedDoc && !isUploading && (
+          <p className="mb-2 text-xs text-green-600">
+            ✅ Archivo subido — procesando en segundo plano
+          </p>
+        )}
+
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
+          {/* Paperclip button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            title="Adjuntar documento (PDF, JPG, PNG)"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+          </button>
+
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

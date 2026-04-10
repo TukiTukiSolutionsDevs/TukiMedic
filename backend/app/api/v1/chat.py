@@ -30,6 +30,7 @@ from app.core.graph_cache import get_or_build_graph
 from app.core.redis import redis_client
 from app.core.security import decode_token
 from app.memory import append_messages, load_messages, retrieve_relevant_facts, store_facts
+from app.services.document_context import get_document_context, message_references_documents
 from app.models.user import User
 from app.orchestrator.graph import create_initial_state
 
@@ -217,6 +218,17 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     state["extracted_facts"] = relevant_facts
             except Exception:
                 pass  # L2 failure must not block chat
+
+            # Level 3 — inject document context if message references docs (graceful degradation)
+            if message_references_documents(content):
+                try:
+                    async with async_session() as doc_db:
+                        doc_context = await get_document_context(
+                            doc_db, str(user.id), case_id_str
+                        )
+                        state["document_context"] = doc_context
+                except Exception:
+                    pass  # Document context failure must not block chat
 
             config = {"configurable": {"thread_id": case_id_str}}
 

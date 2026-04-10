@@ -61,6 +61,10 @@ class ClinicalCaseState(TypedDict):
     current_node: str
     force_close: bool
 
+    # Document context (Phase 2.5) — injected before graph runs when message references docs
+    # Shape: {"documents": [{doc_type, filename, ocr_preview}], "lab_values": [{test_name, ...}]}
+    document_context: dict
+
     # Metadata
     created_at: str
     updated_at: str
