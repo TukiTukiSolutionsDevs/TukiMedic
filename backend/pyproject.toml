@@ -1,0 +1,40 @@
+[project]
+name = "medagent-backend"
+version = "0.1.0"
+description = "MedAgent - Multi-Agent Medical Platform Backend"
+authors = [
+    {name = "MedAgent Team"}
+]
+requires-python = "^3.12"
+dependencies = [
+    "fastapi (>=0.135.3,<0.136.0)",
+    "uvicorn[standard] (>=0.44.0,<0.45.0)",
+    "sqlalchemy[asyncio] (>=2.0.49,<3.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)",
+    "alembic (>=1.18.4,<2.0.0)",
+    "redis (>=7.4.0,<8.0.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)",
+    "pydantic-settings (>=2.13.1,<3.0.0)",
+    "python-jose[cryptography] (>=3.5.0,<4.0.0)",
+    "passlib[bcrypt] (>=1.7.4,<2.0.0)",
+    "python-multipart (>=0.0.24,<0.0.25)",
+    "langgraph (>=1.1.6,<2.0.0)",
+    "langchain (>=1.2.15,<2.0.0)",
+    "langchain-openai (>=1.1.12,<2.0.0)",
+    "langchain-community (>=0.4.1,<0.5.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.3,<10.0.0)",
+    "pytest-asyncio (>=1.3.0,<2.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "ruff (>=0.15.10,<0.16.0)",
+    "black (>=26.3.1,<27.0.0)"
+]
