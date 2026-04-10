@@ -10,8 +10,8 @@
 | Fase 0: Setup | ✅ Completa | 6/6 |
 | Fase 1: Core | ✅ Completa | 13/13 (278 tests) |
 | Fase 2: Documentos | ✅ Completa | 5/5 (327 tests) |
-| Fase 3: Especialidades | 🔄 En curso | 0/5 |
-| Fase 4: Memoria + KB | ⚪ Pendiente | 0/3 |
+| Fase 3: Especialidades | ✅ Completa | 5/5 (356 tests) |
+| Fase 4: Memoria + KB | 🔄 En curso | 0/3 |
 | Fase 5: Dashboard | ⚪ Pendiente | 0/1 |
 
 ---
@@ -138,13 +138,13 @@
 
 ---
 
-## Fase 3: Especialidades adicionales (3-4 semanas)
+## Fase 3: Especialidades adicionales (3-4 semanas) ✅
 
-- [ ] Medicina Interna
-- [ ] Pediatría
-- [ ] Ginecología
-- [ ] Farmacología (interacciones)
-- [ ] Plugin system para agregar especialidades
+- [x] Medicina Interna (InternalMedicineAgent + system prompt especializado)
+- [x] Pediatría (PediatricsAgent + consideraciones pediátricas)
+- [x] Ginecología (GynecologyAgent + salud reproductiva)
+- [x] Farmacología (PharmacologyAgent + DrugInteraction schema + LLM-only MVP)
+- [x] Plugin system (Registry pattern + @register decorator + dynamic dispatcher)
 
 ---
 
@@ -162,4 +162,4 @@
 
 ---
 
-> 🏗️ **Próximo paso**: Fase 3 — Especialidades adicionales (Medicina Interna, Pediatría, Ginecología, Farmacología, Plugin system)
+> 🏗️ **Próximo paso**: Fase 4 — Memoria Nivel 3 + Knowledge Base (timeline clínico, scraping MedlinePlus, RAG con pgvector)
