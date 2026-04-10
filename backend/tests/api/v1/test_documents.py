@@ -103,6 +103,7 @@ async def test_upload_valid_pdf(client, mock_db):
         patch("app.api.v1.documents.filetype") as mock_ft,
         patch("app.api.v1.documents.storage_client") as mock_storage,
         patch("app.api.v1.documents.uuid") as mock_uuid,
+        patch("app.api.v1.documents._process_document_bg", new_callable=AsyncMock),
     ):
         mock_ft.guess.return_value = MagicMock(mime="application/pdf")
         mock_storage.upload_file = AsyncMock(return_value=doc.storage_path)
@@ -138,6 +139,7 @@ async def test_upload_valid_image(client, mock_db):
     with (
         patch("app.api.v1.documents.filetype") as mock_ft,
         patch("app.api.v1.documents.storage_client") as mock_storage,
+        patch("app.api.v1.documents._process_document_bg", new_callable=AsyncMock),
     ):
         mock_ft.guess.return_value = MagicMock(mime="image/jpeg")
         mock_storage.upload_file = AsyncMock()

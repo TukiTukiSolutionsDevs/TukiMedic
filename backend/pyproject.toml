@@ -29,8 +29,13 @@ dependencies = [
     "cachetools (>=5.3)",
     "pgvector (>=0.3)",
     "boto3 (>=1.34,<2.0.0)",
-    "filetype (>=1.2,<2.0.0)"
+    "filetype (>=1.2,<2.0.0)",
+    "pytesseract (>=0.3.10)",
+    "pdf2image (>=1.16)",
+    "Pillow (>=10.0)",
+    "greenlet (>=3.4.0,<4.0.0)",
 ]
+# System deps required: tesseract-ocr, poppler-utils (install via brew/apt, NOT pip)
 
 
 [build-system]
