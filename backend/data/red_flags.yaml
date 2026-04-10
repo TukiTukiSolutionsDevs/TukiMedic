@@ -1,0 +1,55 @@
+# Red flags clínicos — triggers de escalamiento automático a ROJO
+cardiovascular:
+  - "dolor torácico agudo"
+  - "dolor en el pecho"
+  - "dolor torácico con disnea"
+  - "irradiación a brazo"
+  - "irradiación a mandíbula"
+  - "síncope inexplicado"
+  - "palpitaciones con desmayo"
+
+neurologico:
+  - "debilidad unilateral súbita"
+  - "pérdida de habla"
+  - "pérdida de visión"
+  - "cefalea la peor de mi vida"
+  - "convulsión activa"
+  - "convulsiones"
+  - "no puedo mover un lado"
+
+respiratorio:
+  - "dificultad respiratoria severa"
+  - "no puedo respirar"
+  - "cianosis"
+  - "labios morados"
+  - "ahogo que no mejora"
+
+psiquiatrico:
+  - "ideación suicida"
+  - "quiero matarme"
+  - "autolesión"
+  - "me quiero hacer daño"
+  - "no quiero vivir"
+
+pediatrico:
+  - "fiebre en recién nacido"
+  - "fiebre neonato"
+  - "bebé no responde"
+  - "letargia en lactante"
+  - "bebé no come y duerme mucho"
+
+obstetrico:
+  - "sangrado vaginal embarazo"
+  - "sangrado en embarazo"
+  - "dolor abdominal severo embarazo"
+  - "pérdida de líquido amniótico"
+  - "rotura de bolsa"
+
+general:
+  - "sangrado no controlable"
+  - "sangrado que no para"
+  - "reacción alérgica severa"
+  - "edema de vía aérea"
+  - "no puedo tragar"
+  - "trauma con pérdida de conciencia"
+  - "se desmayó y no reacciona"
