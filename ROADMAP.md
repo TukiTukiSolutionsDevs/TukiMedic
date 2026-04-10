@@ -12,7 +12,7 @@
 | Fase 2: Documentos | ✅ Completa | 5/5 (327 tests) |
 | Fase 3: Especialidades | ✅ Completa | 5/5 (356 tests) |
 | Fase 4: Memoria + KB | ✅ Completa | 3/3 (372 tests) |
-| Fase 5: Dashboard | 🔄 En curso | 0/1 |
+| Fase 5: Dashboard | ✅ Completa | 1/1 (390 tests) |
 
 ---
 
@@ -156,10 +156,13 @@
 
 ---
 
-## Fase 5: Dashboard y Admin (3-4 semanas)
+## Fase 5: Dashboard y Admin (3-4 semanas) ✅
 
-- [ ] Dashboard de métricas, audit log, gestión KB, exportar PDF
+- [x] Dashboard de métricas (stat cards, aggregate queries, Redis cache)
+- [x] Audit log (AuditLog model, paginated API, wired in auth+documents)
+- [x] Gestión KB (CRUD API, MedlinePlus ingest, admin page)
+- [x] Exportar PDF (reportlab, case report generation)
 
 ---
 
-> 🏗️ **Próximo paso**: Fase 4 — Memoria Nivel 3 + Knowledge Base (timeline clínico, scraping MedlinePlus, RAG con pgvector)
+> 🎉 **PROYECTO COMPLETO** — Todas las fases implementadas. 390 tests passing. MedAgent listo para producción.
