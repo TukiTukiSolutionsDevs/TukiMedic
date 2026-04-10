@@ -9,8 +9,8 @@
 |------|--------|----------|
 | Fase 0: Setup | ✅ Completa | 6/6 |
 | Fase 1: Core | ✅ Completa | 13/13 (278 tests) |
-| Fase 2: Documentos | 🔄 En curso | 0/5 |
-| Fase 3: Especialidades | ⚪ Pendiente | 0/5 |
+| Fase 2: Documentos | ✅ Completa | 5/5 (327 tests) |
+| Fase 3: Especialidades | 🔄 En curso | 0/5 |
 | Fase 4: Memoria + KB | ⚪ Pendiente | 0/3 |
 | Fase 5: Dashboard | ⚪ Pendiente | 0/1 |
 
@@ -128,13 +128,13 @@
 
 ---
 
-## Fase 2: Documentos (2-3 semanas)
+## Fase 2: Documentos (2-3 semanas) ✅
 
-- [ ] Upload + validación + S3/MinIO
-- [ ] OCR (Tesseract + Cloud Vision fallback)
-- [ ] Clasificación de documentos con LLM
-- [ ] Extracción de valores de laboratorio
-- [ ] Integración con el chat + agentes
+- [x] Upload + validación + S3/MinIO (StorageClient boto3, REST API, 20MB max)
+- [x] OCR (Tesseract + Cloud Vision fallback, pdf2image, confidence threshold)
+- [x] Clasificación de documentos con LLM (GPT-4o-mini structured output)
+- [x] Extracción de valores de laboratorio (test_name, value, unit, range, flag)
+- [x] Integración con el chat + agentes (keyword detection, document_context injection)
 
 ---
 
@@ -162,4 +162,4 @@
 
 ---
 
-> 🏗️ **Próximo paso**: Fase 2 — Documentos (upload, OCR, clasificación, extracción, integración)
+> 🏗️ **Próximo paso**: Fase 3 — Especialidades adicionales (Medicina Interna, Pediatría, Ginecología, Farmacología, Plugin system)
