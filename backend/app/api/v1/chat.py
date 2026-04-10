@@ -1,0 +1,240 @@
+"""
+WebSocket chat endpoint — /api/v1/chat/ws
+
+Protocol:
+  1. Client connects (origin check)
+  2. Client sends first message: {"type":"auth","token":"<JWT access token>"}
+  3. Server validates JWT → sends auth_ok or error+close(1008)
+  4. Heartbeat background task sends {"type":"pong"} every HEARTBEAT_INTERVAL seconds
+  5. Client sends {"type":"message","content":"...","case_id":"<uuid|null>"}
+  6. Server rate-limits, builds/fetches graph, streams events as WS frames
+  7. On disconnect or error, cleanup and exit
+
+Event → frame mapping (LangGraph astream_events v2):
+  on_chain_start  (not internal)  → {"type":"agent_start","agent":"<name>"}
+  on_chat_model_stream            → {"type":"token","content":"<chunk>"}
+  on_chain_end    (synthesizer)   → {"type":"done","response":"...","case_id":"..."}
+"""
+
+import asyncio
+import json
+import uuid
+
+from fastapi import APIRouter
+from jose import JWTError
+from starlette.websockets import WebSocket, WebSocketDisconnect
+
+from app.core.config import settings
+from app.core.database import async_session
+from app.core.graph_cache import get_or_build_graph
+from app.core.redis import redis_client
+from app.core.security import decode_token
+from app.models.user import User
+from app.orchestrator.graph import create_initial_state
+
+chat_router = APIRouter(prefix="/chat", tags=["chat"])
+
+# ---------------------------------------------------------------------------
+# Module-level constants — patchable in tests
+# ---------------------------------------------------------------------------
+
+AUTH_TIMEOUT: float = 10.0        # seconds to wait for first auth message
+GRAPH_TIMEOUT: float = 120.0      # max seconds for graph execution per message
+HEARTBEAT_INTERVAL: float = 30.0  # seconds between server-initiated pongs
+RATE_LIMIT_MAX: int = 10          # max messages per RATE_LIMIT_WINDOW
+RATE_LIMIT_WINDOW: int = 60       # rate limit window in seconds
+
+# ---------------------------------------------------------------------------
+# LangGraph internal node names — filtered from agent_start events
+# ---------------------------------------------------------------------------
+
+_SKIP_NODES = frozenset({"LangGraph", "__start__", "ChannelWrite", "ChannelRead", "__end__"})
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat background task
+# ---------------------------------------------------------------------------
+
+async def _heartbeat(ws: WebSocket, stop: asyncio.Event) -> None:
+    """Send {'type':'pong'} every HEARTBEAT_INTERVAL seconds until stop is set."""
+    while not stop.is_set():
+        try:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            await ws.send_json({"type": "pong"})
+        except Exception:
+            break
+
+
+# ---------------------------------------------------------------------------
+# LangGraph event → WebSocket frame mapper
+# ---------------------------------------------------------------------------
+
+async def _handle_event(ws: WebSocket, event: dict, case_id: str) -> None:
+    """Map one LangGraph astream_events v2 event to a WebSocket frame, or no-op."""
+    kind: str = event.get("event", "")
+    name: str = event.get("name", "")
+
+    if kind == "on_chain_start" and name not in _SKIP_NODES:
+        await ws.send_json({"type": "agent_start", "agent": name})
+
+    elif kind == "on_chat_model_stream":
+        chunk = event.get("data", {}).get("chunk")
+        content = getattr(chunk, "content", "") or ""
+        if content:
+            await ws.send_json({"type": "token", "content": content})
+
+    elif kind == "on_chain_end" and name == "synthesizer":
+        output = event.get("data", {}).get("output", {})
+        response = output.get("synthesized_response", "")
+        await ws.send_json({"type": "done", "response": response, "case_id": case_id})
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint
+# ---------------------------------------------------------------------------
+
+@chat_router.websocket("/ws")
+async def websocket_chat(websocket: WebSocket) -> None:
+    """Main WebSocket handler for the clinical AI chat stream."""
+    # Origin guard — only reject if Origin header is present AND not in allowlist
+    origin = websocket.headers.get("origin", "")
+    if origin and origin not in set(settings.ALLOWED_ORIGINS):
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+
+    stop_event = asyncio.Event()
+    heartbeat_task = asyncio.create_task(_heartbeat(websocket, stop_event))
+
+    try:
+        # ── Auth phase ────────────────────────────────────────────────────────
+        user = None
+        try:
+            raw = await asyncio.wait_for(
+                websocket.receive_text(), timeout=AUTH_TIMEOUT
+            )
+            msg = json.loads(raw)
+            if msg.get("type") != "auth" or "token" not in msg:
+                raise ValueError("bad auth message")
+            payload = decode_token(msg["token"])
+            if payload.get("type") != "access":
+                raise ValueError("not an access token")
+            user_id = uuid.UUID(payload["sub"])
+            async with async_session() as db:
+                user = await db.get(User, user_id)
+            if user is None or not user.is_active:
+                raise ValueError("user not found or inactive")
+        except Exception:
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "unauthorized",
+                        "message": "Authentication failed",
+                    }
+                )
+                await websocket.close(code=1008)
+            except Exception:
+                pass
+            return
+
+        await websocket.send_json({"type": "auth_ok", "user_id": str(user.id)})
+
+        # ── Message loop ──────────────────────────────────────────────────────
+        while True:
+            try:
+                raw = await websocket.receive_text()
+            except WebSocketDisconnect:
+                break
+
+            # Parse JSON
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "invalid_message",
+                        "message": "Invalid JSON",
+                    }
+                )
+                continue
+
+            msg_type = msg.get("type")
+
+            # Client ping → immediate pong (before any other processing)
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            # Silently ignore unknown frame types
+            if msg_type != "message":
+                continue
+
+            # Validate content
+            content = msg.get("content", "").strip()
+            if not content:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "invalid_message",
+                        "message": "content required",
+                    }
+                )
+                continue
+
+            case_id_str: str = msg.get("case_id") or str(uuid.uuid4())
+
+            # Rate limiting — Redis INCR + EXPIRE pattern
+            rate_key = f"ws:ratelimit:{user.id}"
+            count = await redis_client.incr(rate_key)
+            if count == 1:
+                await redis_client.expire(rate_key, RATE_LIMIT_WINDOW)
+            if count > RATE_LIMIT_MAX:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "rate_limited",
+                        "message": "Rate limit exceeded. Wait 60s.",
+                    }
+                )
+                continue  # keep connection open
+
+            # Graph execution
+            graph = await get_or_build_graph(str(user.id), settings.OPENAI_API_KEY)
+            state = create_initial_state(case_id_str, str(user.id), content)
+            config = {"configurable": {"thread_id": case_id_str}}
+
+            try:
+                async with asyncio.timeout(GRAPH_TIMEOUT):
+                    async for event in graph.astream_events(state, config, version="v2"):
+                        await _handle_event(websocket, event, case_id_str)
+            except asyncio.TimeoutError:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "timeout",
+                        "message": "Graph execution timed out",
+                    }
+                )
+                await websocket.close(code=1011)
+                break
+            except Exception as exc:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "graph_error",
+                        "message": str(exc),
+                    }
+                )
+                await websocket.close(code=1011)
+                break
+
+    finally:
+        stop_event.set()
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass

@@ -8,7 +8,7 @@
 | Fase | Estado | Progreso |
 |------|--------|----------|
 | Fase 0: Setup | ✅ Completa | 6/6 |
-| Fase 1: Core | ⚪ Pendiente | 0/13 |
+| Fase 1: Core | 🔄 En curso | 1/13 |
 | Fase 2: Documentos | ⚪ Pendiente | 0/5 |
 | Fase 3: Especialidades | ⚪ Pendiente | 0/5 |
 | Fase 4: Memoria + KB | ⚪ Pendiente | 0/3 |
@@ -113,10 +113,10 @@
 - [ ] Tests: flujo con Mesa Médica disagreement
 - [ ] Tests: flujo con escalamiento
 
-### 1.11 WebSocket streaming
-- [ ] WebSocket server en FastAPI
-- [ ] Streaming de eventos de Mesa Médica
-- [ ] Frontend: chat con streaming + indicadores
+### 1.11 WebSocket streaming ✅
+- [x] WebSocket server en FastAPI
+- [x] Streaming de eventos de Mesa Médica
+- [x] Frontend: chat con streaming + indicadores
 
 ### 1.12 Memoria Nivel 1 (Inmediata - Redis)
 - [ ] Ventana deslizante de mensajes
