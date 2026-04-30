@@ -1,15 +1,17 @@
 """
 Global test fixtures for the medagent backend test suite.
 """
+import base64
 import os
 import secrets
 
-# Force a strong, deterministic-per-process SECRET_KEY BEFORE any `app.*`
-# import. The production validator in `app.core.config` rejects placeholder
-# values (e.g. "change-me-in-production") and short keys at module import
-# time, which would otherwise prevent test collection.
+# Force strong, deterministic-per-process secrets BEFORE any `app.*` import.
+# The validators in `app.core.config` and `app.core.crypto` reject missing /
+# placeholder values at import time, which would otherwise prevent collection.
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ["SECRET_KEY"] = secrets.token_urlsafe(48)
+# AES-256-GCM master key for the encrypted credential vault (S4.0.c).
+os.environ["VAULT_MASTER_KEY"] = base64.b64encode(os.urandom(32)).decode()
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
