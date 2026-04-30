@@ -31,7 +31,7 @@ def _make_admin():
     u = MagicMock(spec=User)
     u.id = USER_ID
     u.is_active = True
-    u.is_admin = True
+    u.role = "admin"
     return u
 
 
@@ -39,7 +39,7 @@ def _make_regular():
     u = MagicMock(spec=User)
     u.id = USER_ID
     u.is_active = True
-    u.is_admin = False
+    u.role = "customer"
     return u
 
 
@@ -301,3 +301,80 @@ async def test_non_admin_gets_403(user_client):
     assert r2.status_code == 403
     assert r3.status_code == 403
     assert r4.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# S4.0.a-6 — Role-based admin guard (role field, not is_admin)
+# ---------------------------------------------------------------------------
+
+def _make_role_admin():
+    u = MagicMock(spec=User)
+    u.id = USER_ID
+    u.is_active = True
+    u.role = "admin"
+    return u
+
+
+def _make_role_customer():
+    u = MagicMock(spec=User)
+    u.id = USER_ID
+    u.is_active = True
+    u.role = "customer"
+    return u
+
+
+@pytest.fixture
+def role_admin_client(mock_db):
+    async def _get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user] = lambda: _make_role_admin()
+    app.dependency_overrides[get_db] = _get_db
+    yield AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def role_customer_client(mock_db):
+    async def _get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user] = lambda: _make_role_customer()
+    app.dependency_overrides[get_db] = _get_db
+    yield AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL)
+    app.dependency_overrides.clear()
+
+
+async def test_role_admin_guard_allows_admin_role(role_admin_client, mock_db):
+    """require_admin allows users with role='admin'."""
+
+    def _scalar(val):
+        r = MagicMock()
+        r.scalar.return_value = val
+        return r
+
+    def _all(rows):
+        r = MagicMock()
+        r.all.return_value = rows
+        return r
+
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            _scalar(0), _scalar(0), _scalar(0), _scalar(0),
+            _all([]), _all([]),
+        ]
+    )
+    with (
+        patch("app.api.v1.admin._get_cached_metrics", return_value=None),
+        patch("app.api.v1.admin._cache_metrics"),
+    ):
+        async with role_admin_client as c:
+            resp = await c.get("/api/v1/admin/metrics")
+    assert resp.status_code == 200
+
+
+async def test_role_admin_guard_rejects_customer_role(role_customer_client):
+    """require_admin rejects users with role='customer' → 403."""
+    async with role_customer_client as c:
+        resp = await c.get("/api/v1/admin/metrics")
+    assert resp.status_code == 403

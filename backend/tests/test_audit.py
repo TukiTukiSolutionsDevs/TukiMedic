@@ -33,7 +33,7 @@ def _make_admin_user():
     u = MagicMock(spec=User)
     u.id = USER_ID
     u.is_active = True
-    u.is_admin = True
+    u.role = "admin"
     return u
 
 
@@ -41,7 +41,7 @@ def _make_regular_user():
     u = MagicMock(spec=User)
     u.id = USER_ID
     u.is_active = True
-    u.is_admin = False
+    u.role = "customer"
     return u
 
 

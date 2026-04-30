@@ -30,7 +30,7 @@ def _make_user(user_id=USER_ID, is_admin=False):
     u = MagicMock(spec=User)
     u.id = user_id
     u.is_active = True
-    u.is_admin = is_admin
+    u.role = "admin" if is_admin else "customer"
     u.display_name = "Test User"
     u.email = "test@example.com"
     return u
