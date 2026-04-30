@@ -29,13 +29,23 @@ _GUARDRAIL_FALLBACK = GuardrailCheck(
 class GuardrailAgent:
     """Monitor de seguridad en tiempo real — inspirado en g-AMIE."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str | None = None):
-        self.llm = ChatOpenAI(
-            model=model,
-            temperature=0.0,
-            api_key=api_key,
-            base_url=base_url,
-        ).with_structured_output(GuardrailCheck)
+    def __init__(
+        self,
+        chat_model=None,
+        *,
+        api_key: str | None = None,
+        model: str = "gpt-4o",
+        base_url: str | None = None,
+    ):
+        if chat_model is not None:
+            self.llm = chat_model.with_structured_output(GuardrailCheck)
+        else:
+            self.llm = ChatOpenAI(
+                model=model,
+                temperature=0.0,
+                api_key=api_key,
+                base_url=base_url,
+            ).with_structured_output(GuardrailCheck)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:
         """Check current state content for safety violations."""
