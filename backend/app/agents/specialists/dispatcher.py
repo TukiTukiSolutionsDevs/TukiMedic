@@ -14,13 +14,16 @@ from app.agents.specialists.registry import get_specialist
 from app.agents.specialists.general_medicine import GeneralMedicineAgent
 
 
-async def dispatch_specialists(state: dict, api_key: str) -> dict:
+async def dispatch_specialists(
+    state: dict, api_key: str, base_url: str | None = None
+) -> dict:
     """
     Dispatch to active specialists in parallel. Fallback to general medicine.
 
     Args:
         state: ClinicalCaseState dict — reads active_specialties, specialist_outputs.
-        api_key: User's API key injected into each specialist agent.
+        api_key: Provider API key injected into each specialist agent.
+        base_url: Optional base URL override (e.g. Gemini OpenAI-compat endpoint).
 
     Returns:
         Partial state update with merged specialist_outputs dict.
@@ -29,7 +32,7 @@ async def dispatch_specialists(state: dict, api_key: str) -> dict:
 
     # --- Fallback: no active specialties ---
     if not active:
-        agent = GeneralMedicineAgent(api_key=api_key)
+        agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
         return await agent(state)
 
     # --- Resolve agents from registry ---
@@ -37,13 +40,13 @@ async def dispatch_specialists(state: dict, api_key: str) -> dict:
     for spec in active:
         # active_specialties items are dicts: {name, weight, reason}
         name = spec if isinstance(spec, str) else spec.get("name", "")
-        agent = get_specialist(name, api_key)
+        agent = get_specialist(name, api_key, base_url=base_url)
         if agent is not None:
             agents.append(agent)
 
     # --- Fallback: no matching agents in registry ---
     if not agents:
-        agent = GeneralMedicineAgent(api_key=api_key)
+        agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
         return await agent(state)
 
     # --- Run all matched specialists in parallel ---

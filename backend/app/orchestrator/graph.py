@@ -35,6 +35,7 @@ from app.agents.synthesizer import SynthesizerAgent
 from app.core.database import async_session  # noqa: F401 — patched in tests
 
 from app.services.audit import log_clinical_decision
+from app.services.llm_router import ProviderCredentialDTO
 
 log = logging.getLogger(__name__)
 
@@ -221,23 +222,28 @@ def _guardrail_router(state: ClinicalCaseState) -> str:
 # Graph builder
 # ---------------------------------------------------------------------------
 
-def build_graph(api_key: str) -> StateGraph:
+def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     """Build the complete MedAgent orchestration graph.
 
     Args:
-        api_key: User's API key (BYOK model). Injected into all agents.
+        cred: Provider credential DTO from the LLM router. Contains a
+              decrypted ``api_key`` and an optional ``base_url`` for
+              multi-provider support (e.g. Gemini OpenAI-compat endpoint).
 
     Returns:
         Compiled LangGraph StateGraph ready for execution.
     """
-    # Instantiate agents with user's API key
-    triage = TriageAgent(api_key=api_key)
-    anamnesis = AnamnesisAgent(api_key=api_key)
-    classifier = ClassifierAgent(api_key=api_key)
-    medical_board = MedicalBoardAgent(api_key=api_key)
-    devils_advocate = DevilsAdvocateAgent(api_key=api_key)
-    guardrail = GuardrailAgent(api_key=api_key)
-    synthesizer = SynthesizerAgent(api_key=api_key)
+    api_key = cred.api_key
+    base_url = cred.base_url
+
+    # Instantiate agents with credential from the vault
+    triage = TriageAgent(api_key=api_key, base_url=base_url)
+    anamnesis = AnamnesisAgent(api_key=api_key, base_url=base_url)
+    classifier = ClassifierAgent(api_key=api_key, base_url=base_url)
+    medical_board = MedicalBoardAgent(api_key=api_key, base_url=base_url)
+    devils_advocate = DevilsAdvocateAgent(api_key=api_key, base_url=base_url)
+    guardrail = GuardrailAgent(api_key=api_key, base_url=base_url)
+    synthesizer = SynthesizerAgent(api_key=api_key, base_url=base_url)
 
     # Build graph
     workflow = StateGraph(ClinicalCaseState)
@@ -258,7 +264,7 @@ def build_graph(api_key: str) -> StateGraph:
     workflow.add_node("classification", classifier)
 
     async def specialist_node(state: ClinicalCaseState) -> dict:
-        return await dispatch_specialists(state, api_key=api_key)
+        return await dispatch_specialists(state, api_key=api_key, base_url=base_url)
 
     workflow.add_node("specialists", specialist_node)
     workflow.add_node("medical_board", medical_board)

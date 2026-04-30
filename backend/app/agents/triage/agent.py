@@ -28,11 +28,12 @@ _TRIAGE_FALLBACK = TriageResult(
 class TriageAgent:
     """Agente de triage clínico — nodo de LangGraph."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str | None = None):
         self.llm = ChatOpenAI(
             model=model,
             temperature=0.0,
             api_key=api_key,
+            base_url=base_url,
         ).with_structured_output(TriageResult)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:

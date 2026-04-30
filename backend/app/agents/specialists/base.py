@@ -46,11 +46,12 @@ class BaseSpecialistAgent(ABC):
     default_model: str = "gpt-4o"
     default_temperature: float = 0.3
 
-    def __init__(self, api_key: str, model: str | None = None):
+    def __init__(self, api_key: str, model: str | None = None, base_url: str | None = None):
         self.llm = ChatOpenAI(
             model=model or self.default_model,
             temperature=self.default_temperature,
             api_key=api_key,
+            base_url=base_url,
         ).with_structured_output(SpecialistAnalysis)
 
     def _build_context(self, state: ClinicalCaseState) -> str:

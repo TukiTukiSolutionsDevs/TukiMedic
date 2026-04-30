@@ -27,11 +27,12 @@ _DEVILS_ADVOCATE_FALLBACK = ChallengeResult(
 class DevilsAdvocateAgent:
     """Devil's Advocate — challenges specialist conclusions to prevent groupthink."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str | None = None):
         self.llm = ChatOpenAI(
             model=model,
             temperature=0.5,
             api_key=api_key,
+            base_url=base_url,
         ).with_structured_output(ChallengeResult)
 
     def _format_specialist_analyses(self, specialist_outputs: dict) -> str:

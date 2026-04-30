@@ -30,11 +30,12 @@ _CLASSIFIER_FALLBACK = ClassificationResult(
 class ClassifierAgent:
     """Agente clasificador de especialidades — nodo de LangGraph."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str | None = None):
         self.llm = ChatOpenAI(
             model=model,
             temperature=0.2,
             api_key=api_key,
+            base_url=base_url,
         ).with_structured_output(ClassificationResult)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:

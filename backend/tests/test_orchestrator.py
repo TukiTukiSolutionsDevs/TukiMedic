@@ -20,6 +20,15 @@ from app.orchestrator.graph import (
     create_initial_state,
 )
 from app.orchestrator.state import ClinicalCaseState
+from app.services.llm_router import ProviderCredentialDTO
+
+
+def _make_cred(
+    api_key: str = "sk-test-00000000000000000000000000000000",
+    provider: str = "gemini",
+    base_url: str | None = None,
+) -> ProviderCredentialDTO:
+    return ProviderCredentialDTO(provider=provider, api_key=api_key, base_url=base_url)
 
 
 # ---------------------------------------------------------------------------
@@ -256,13 +265,23 @@ class TestGuardrailRouter:
 
 class TestBuildGraph:
     def test_compiles_without_error(self, mock_llm):
-        graph = build_graph(api_key="sk-test-00000000000000000000000000000000")
+        graph = build_graph(_make_cred())
         assert graph is not None
 
     def test_returns_invocable(self, mock_llm):
-        graph = build_graph(api_key="sk-test-00000000000000000000000000000000")
+        graph = build_graph(_make_cred())
         assert hasattr(graph, "invoke") or hasattr(graph, "ainvoke")
 
-    def test_agents_constructed_with_key(self, mock_llm):
-        build_graph(api_key="sk-my-test-key")
+    def test_agents_constructed_with_credential(self, mock_llm):
+        """build_graph uses cred.api_key (not a static env var)."""
+        build_graph(_make_cred(api_key="sk-vault-key-xyz"))
         assert mock_llm.with_structured_output.called
+
+    def test_build_graph_with_gemini_base_url(self, mock_llm):
+        """build_graph accepts a Gemini credential with base_url."""
+        cred = _make_cred(
+            api_key="sk-gemini-key",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+        graph = build_graph(cred)
+        assert graph is not None

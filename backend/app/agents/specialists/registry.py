@@ -22,12 +22,12 @@ def register(cls: type) -> type:
     return cls
 
 
-def get_specialist(name: str, api_key: str) -> object | None:
+def get_specialist(name: str, api_key: str, base_url: str | None = None) -> object | None:
     """Instancia y retorna un especialista por nombre. None si no existe."""
     cls = REGISTRY.get(name)
     if cls is None:
         return None
-    return cls(api_key=api_key)
+    return cls(api_key=api_key, base_url=base_url)
 
 
 def get_available_specialties() -> list[str]:
