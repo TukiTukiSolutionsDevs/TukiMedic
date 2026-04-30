@@ -15,6 +15,44 @@ import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 
+# ---------------------------------------------------------------------------
+# @live_llm marker — opt-in tests that hit a real LLM endpoint
+# (e.g. Meridian shim on http://localhost:4568/v1, OpenAI, Anthropic).
+#
+# By default these are SKIPPED. Enable with RUN_LIVE_LLM=1 or by passing
+# --live-llm. Use sparingly: they cost tokens and depend on network.
+# ---------------------------------------------------------------------------
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--live-llm",
+        action="store_true",
+        default=False,
+        help="Run tests marked @pytest.mark.live_llm (real LLM calls).",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live_llm: marks tests that hit a real LLM endpoint (deselect with -m 'not live_llm')",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip @live_llm tests unless --live-llm or RUN_LIVE_LLM=1."""
+    enabled = config.getoption("--live-llm") or os.environ.get("RUN_LIVE_LLM") == "1"
+    if enabled:
+        return
+    skip_live = pytest.mark.skip(
+        reason="live_llm: pass --live-llm or set RUN_LIVE_LLM=1 to enable"
+    )
+    for item in items:
+        if "live_llm" in item.keywords:
+            item.add_marker(skip_live)
+
+
 @pytest.fixture(autouse=True)
 def mock_memory_redis_client():
     """
