@@ -5,8 +5,9 @@ key, and returns a transient ProviderCredentialDTO.
 
 Adding a new provider:
   1. Add an entry to _PROVIDER_CONFIGS with the correct base_url (or None).
-  2. Register its credential via the admin vault API.
-  3. Activate it.
+  2. Add model names to PROVIDER_MODELS for "fast" and "smart" tiers.
+  3. Register its credential via the admin vault API.
+  4. Activate it.
 
 Error mapping: NoActiveCredentialError → HTTP 503 (caller's responsibility).
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 
 from app.core.crypto import decrypt
@@ -31,6 +33,29 @@ class NoActiveCredentialError(Exception):
 
     Callers should map this to HTTP 503 Service Unavailable.
     """
+
+
+# ---------------------------------------------------------------------------
+# Provider model tiers
+# ---------------------------------------------------------------------------
+
+#: Maps provider → tier → model name.
+#: Agents request a tier ("fast" or "smart"); the router resolves the
+#: provider-correct model name so no agent ever hardcodes a model string.
+PROVIDER_MODELS: dict[str, dict[str, str]] = {
+    "gemini": {
+        "fast": "gemini-2.5-flash",
+        "smart": "gemini-2.5-pro",
+    },
+    "openai": {
+        "fast": "gpt-4o-mini",
+        "smart": "gpt-4o",
+    },
+    "anthropic": {
+        "fast": "claude-haiku-4-5",
+        "smart": "claude-sonnet-4-5",
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -113,4 +138,34 @@ async def get_active_credential(provider: str = "gemini") -> ProviderCredentialD
         provider=provider,
         api_key=api_key,
         base_url=cfg.base_url,
+    )
+
+
+def get_chat_model(
+    tier: str,
+    cred: "ProviderCredentialDTO",
+    temperature: float = 0.0,
+) -> ChatOpenAI:
+    """Return a configured ChatOpenAI for *tier* and *cred*.
+
+    Resolves the provider-correct model name from PROVIDER_MODELS so
+    agent code never hardcodes a model string. Falls back to the openai
+    tier map for unknown providers.
+
+    Args:
+        tier: ``"fast"`` or ``"smart"``.
+        cred: Active provider credential from the vault.
+        temperature: Sampling temperature (default 0.0 for determinism).
+
+    Returns:
+        ``ChatOpenAI`` instance configured with the correct model,
+        api_key, base_url, and temperature for the provider.
+    """
+    tiers = PROVIDER_MODELS.get(cred.provider, PROVIDER_MODELS["openai"])
+    model_name = tiers.get(tier, tiers["fast"])
+    return ChatOpenAI(
+        model=model_name,
+        api_key=cred.api_key,
+        base_url=cred.base_url,
+        temperature=temperature,
     )
