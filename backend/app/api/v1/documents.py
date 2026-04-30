@@ -1,5 +1,7 @@
 """Documents REST API — upload, list, get, delete."""
 
+import os
+import re
 import uuid
 from typing import Any
 
@@ -21,6 +23,33 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png"}
+
+# Whitelist for filename chars — anything else collapses to "_". This blocks
+# path traversal (../foo), null bytes, and shell metacharacters.
+_FILENAME_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def sanitize_filename(raw: str | None, fallback: str = "upload") -> str:
+    """Return a filesystem-safe, length-bounded filename.
+
+    - Strips path components (no traversal).
+    - Replaces non-[A-Za-z0-9._-] runs with a single underscore.
+    - Strips leading dots so the file can never be a hidden/special name.
+    - Caps total length at 200 chars (preserving the extension when possible).
+    - Returns ``fallback`` if the result would be empty.
+    """
+    if not raw:
+        return fallback
+    base = os.path.basename(str(raw))
+    base = _FILENAME_SAFE_CHARS.sub("_", base).strip("._")
+    if not base:
+        return fallback
+    if len(base) > 200:
+        # Try to preserve extension
+        root, ext = os.path.splitext(base)
+        ext = ext[:16]  # never trust an unbounded extension
+        base = (root[: 200 - len(ext)] + ext) if ext else root[:200]
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +83,8 @@ async def upload_document(
 
     # --- upload to MinIO ---
     doc_id = uuid.uuid4()
-    storage_path = f"{current_user.id}/{doc_id}/{file.filename}"
+    safe_name = sanitize_filename(file.filename)
+    storage_path = f"{current_user.id}/{doc_id}/{safe_name}"
     await storage_client.upload_file(file_data, storage_path, kind.mime)
 
     # --- persist to DB ---
@@ -62,7 +92,7 @@ async def upload_document(
         id=doc_id,
         user_id=current_user.id,
         case_id=case_id,
-        original_filename=file.filename or "unknown",
+        original_filename=safe_name,
         mime_type=kind.mime,
         file_size=len(file_data),
         storage_path=storage_path,
@@ -81,7 +111,7 @@ async def upload_document(
         action="document_upload",
         entity_type="document",
         entity_id=doc.id,
-        details={"filename": file.filename, "mime": kind.mime, "size": len(file_data)},
+        details={"filename": safe_name, "mime": kind.mime, "size": len(file_data)},
     )
     await db.commit()  # single commit: document + audit log
 

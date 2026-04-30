@@ -3,9 +3,14 @@
 System dependencies required (NOT installable via pip):
   - tesseract-ocr  →  brew install tesseract
   - poppler-utils  →  brew install poppler
+
+Hardening: every blocking step (PDF rasterization, tesseract calls) is
+wrapped in asyncio.wait_for so a malformed/huge document cannot pin a
+worker indefinitely. PDFs are also page-limited to bound memory.
 """
 
 import asyncio
+import logging
 import os
 from functools import partial
 from io import BytesIO
@@ -14,24 +19,43 @@ import pytesseract
 from PIL import Image
 from pdf2image import convert_from_bytes
 
+log = logging.getLogger(__name__)
+
 CONFIDENCE_THRESHOLD = 60  # below this, attempt Cloud Vision fallback
+
+# Hard caps — protect against DoS via gigantic / adversarial documents.
+PDF_RENDER_TIMEOUT_S = 60.0      # whole-PDF rasterisation budget
+PER_PAGE_OCR_TIMEOUT_S = 30.0    # per-image tesseract budget
+MAX_PDF_PAGES = 50               # truncate beyond this (and log)
 
 
 async def ocr_document(file_data: bytes, mime_type: str) -> dict:
     """OCR a document.
 
     Returns:
-        {"text": str, "confidence": float, "engine": str}
+        {"text": str, "confidence": float, "engine": str, "pages_truncated": bool}
 
     Raises:
         ValueError: if mime_type is not supported.
+        asyncio.TimeoutError: if rasterisation or any OCR pass exceeds budget.
     """
     loop = asyncio.get_running_loop()
+    pages_truncated = False
 
     if mime_type == "application/pdf":
-        images = await loop.run_in_executor(
-            None, partial(convert_from_bytes, file_data)
+        # Rasterise PDF with a hard timeout — bounds CPU/IO blast radius.
+        images = await asyncio.wait_for(
+            loop.run_in_executor(None, partial(convert_from_bytes, file_data)),
+            timeout=PDF_RENDER_TIMEOUT_S,
         )
+        if len(images) > MAX_PDF_PAGES:
+            log.warning(
+                "ocr_document: PDF has %d pages, truncating to %d",
+                len(images),
+                MAX_PDF_PAGES,
+            )
+            images = images[:MAX_PDF_PAGES]
+            pages_truncated = True
     elif mime_type in ("image/jpeg", "image/png"):
         images = [Image.open(BytesIO(file_data))]
     else:
@@ -41,13 +65,17 @@ async def ocr_document(file_data: bytes, mime_type: str) -> dict:
     confidences: list[float] = []
 
     for img in images:
-        # Confidence data — filter -1 (no text detected on that token)
-        data = await loop.run_in_executor(
-            None,
-            partial(pytesseract.image_to_data, img, output_type=pytesseract.Output.DICT),
+        # Each tesseract call is bounded — a corrupt page can't hang the worker.
+        data = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                partial(pytesseract.image_to_data, img, output_type=pytesseract.Output.DICT),
+            ),
+            timeout=PER_PAGE_OCR_TIMEOUT_S,
         )
-        text = await loop.run_in_executor(
-            None, partial(pytesseract.image_to_string, img)
+        text = await asyncio.wait_for(
+            loop.run_in_executor(None, partial(pytesseract.image_to_string, img)),
+            timeout=PER_PAGE_OCR_TIMEOUT_S,
         )
         texts.append(text.strip())
 
@@ -63,9 +91,15 @@ async def ocr_document(file_data: bytes, mime_type: str) -> dict:
     if avg_confidence < CONFIDENCE_THRESHOLD and len(full_text.strip()) < 50:
         cloud_result = await _try_cloud_vision(file_data, mime_type)
         if cloud_result:
+            cloud_result["pages_truncated"] = pages_truncated
             return cloud_result
 
-    return {"text": full_text, "confidence": avg_confidence, "engine": engine}
+    return {
+        "text": full_text,
+        "confidence": avg_confidence,
+        "engine": engine,
+        "pages_truncated": pages_truncated,
+    }
 
 
 async def _try_cloud_vision(file_data: bytes, mime_type: str) -> dict | None:
