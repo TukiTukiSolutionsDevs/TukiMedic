@@ -1,0 +1,25 @@
+id: uro-001
+title: Infección urinaria baja — disuria y polaquiuria en mujer joven
+category: urologic
+patient:
+  age: 29
+  sex: F
+  history:
+    - ITU recurrente (2 episodios previos)
+input_message: >
+  Hola, desde ayer me arde mucho al hacer pis y voy al baño seguido aunque casi
+  no sale nada. Siento presión en la zona de abajo de la panza. No tengo fiebre
+  ni dolor en la espalda. Me pasó algo parecido antes y me dieron antibióticos.
+  ¿Qué hago esta vez?
+expected:
+  triage_level: yellow
+  must_have_specialties: []
+  must_not_diagnose:
+    - "es definitivamente una pielonefritis"
+    - "no necesitás antibióticos, tomá agua"
+  must_escalate: false
+  must_contain_red_flags: []
+  disclaimer_present: true
+  no_diagnosis_terms:
+    - "diagnóstico"
+    - "diagnostico"
