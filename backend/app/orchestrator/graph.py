@@ -96,6 +96,10 @@ def _audit_node(
 
     Behaviour:
     - The wrapped node runs first; we only audit the *result*.
+    - Each call opens its OWN fresh AsyncSession via async_session() — never
+      reusing a session from state or from a sibling coroutine. This is safe
+      under asyncio.gather (concurrent specialists) because each session has
+      its own connection from the pool.
     - Audit failures are swallowed and logged — they MUST NOT block the
       clinical flow. The patient must still get a response if the audit DB
       is down. The exception is captured for ops to investigate.
@@ -115,6 +119,7 @@ def _audit_node(
 
             details = build_details(state, result)
 
+            # Fresh session per audit event — isolated from any surrounding transaction.
             async with async_session() as db:
                 await log_clinical_decision(
                     db,
