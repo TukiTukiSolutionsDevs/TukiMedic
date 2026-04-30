@@ -11,6 +11,10 @@ NOTE: ClinicalCaseState lives in orchestrator.state to avoid circular imports.
 Agents import from there; this module imports agents → no cycle.
 """
 
+import logging
+import uuid
+from typing import Any, Awaitable, Callable
+
 from langgraph.graph import StateGraph, END
 
 # State lives in its own module — agents import from there, avoiding cycles
@@ -25,6 +29,108 @@ from app.agents.medical_board import MedicalBoardAgent, medical_board_router
 from app.agents.devils_advocate import DevilsAdvocateAgent
 from app.agents.guardrail import GuardrailAgent
 from app.agents.synthesizer import SynthesizerAgent
+
+# Re-export `async_session` so monkeypatching in tests works (and so audit
+# wrapper can open its own short-lived DB session without coupling to chat.py).
+from app.core.database import async_session  # noqa: F401 — patched in tests
+
+from app.services.audit import log_clinical_decision
+
+log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Clinical audit — model versions (bump suffix when prompt or model changes)
+# ---------------------------------------------------------------------------
+
+TRIAGE_MODEL = "gpt-4o-mini@triage-v1"
+GUARDRAIL_MODEL = "gpt-4o@guardrail-v1"
+SYNTHESIZER_MODEL = "gpt-4o@synthesizer-v1"
+
+
+# ---------------------------------------------------------------------------
+# Audit detail builders — pure functions: (state, result) -> dict
+# ---------------------------------------------------------------------------
+
+def _triage_details(state: dict, result: dict) -> dict:
+    return {
+        "urgency_level": result.get("triage_level"),
+        "red_flags_detected": result.get("red_flags", []),
+        "confidence": result.get("triage_confidence"),
+    }
+
+
+def _guardrail_details(state: dict, result: dict) -> dict:
+    return {
+        "violations": result.get("guardrail_violations", []),
+        "interrupt": bool(result.get("guardrail_interrupt", False)),
+    }
+
+
+def _synthesizer_details(state: dict, result: dict) -> dict:
+    response = result.get("synthesized_response") or ""
+    return {
+        "attention_level": result.get("attention_level"),
+        "response_length": len(response),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Audit wrapper — fail-open: if audit logging fails, the node still returns.
+# ---------------------------------------------------------------------------
+
+NodeFn = Callable[[dict], Awaitable[dict]]
+DetailsFn = Callable[[dict, dict], dict]
+
+
+def _audit_node(
+    node: NodeFn,
+    *,
+    action: str,
+    model_version: str,
+    build_details: DetailsFn,
+) -> NodeFn:
+    """Wrap a graph node so each invocation persists an audit log entry.
+
+    Behaviour:
+    - The wrapped node runs first; we only audit the *result*.
+    - Audit failures are swallowed and logged — they MUST NOT block the
+      clinical flow. The patient must still get a response if the audit DB
+      is down. The exception is captured for ops to investigate.
+    """
+
+    async def _wrapped(state: dict) -> dict:
+        result = await node(state)
+        try:
+            raw_case_id = state.get("case_id")
+            case_id = (
+                uuid.UUID(raw_case_id)
+                if isinstance(raw_case_id, str) and raw_case_id
+                else (raw_case_id or uuid.uuid4())
+            )
+            user_raw = state.get("user_id")
+            user_id = uuid.UUID(user_raw) if isinstance(user_raw, str) and user_raw else None
+
+            details = build_details(state, result)
+
+            async with async_session() as db:
+                await log_clinical_decision(
+                    db,
+                    case_id=case_id,
+                    action=action,
+                    details=details,
+                    model_version=model_version,
+                    user_id=user_id,
+                )
+                await db.commit()
+        except Exception:  # noqa: BLE001 — fail-open by design
+            log.exception(
+                "clinical audit failed for action=%s; continuing with node result",
+                action,
+            )
+        return result
+
+    return _wrapped
 
 
 # ---------------------------------------------------------------------------
@@ -136,18 +242,45 @@ def build_graph(api_key: str) -> StateGraph:
     # Build graph
     workflow = StateGraph(ClinicalCaseState)
 
-    # Add nodes
-    workflow.add_node("triage", triage)
+    # Add nodes — clinical decisions are wrapped with the audit logger so
+    # every triage / guardrail / synthesis call is persisted with model
+    # version + sha256 fingerprint of inputs (legal defensibility).
+    workflow.add_node(
+        "triage",
+        _audit_node(
+            triage,
+            action="triage_decision",
+            model_version=TRIAGE_MODEL,
+            build_details=_triage_details,
+        ),
+    )
     workflow.add_node("anamnesis", anamnesis)
     workflow.add_node("classification", classifier)
+
     async def specialist_node(state: ClinicalCaseState) -> dict:
         return await dispatch_specialists(state, api_key=api_key)
 
     workflow.add_node("specialists", specialist_node)
     workflow.add_node("medical_board", medical_board)
     workflow.add_node("devils_advocate", devils_advocate)
-    workflow.add_node("guardrail", guardrail)
-    workflow.add_node("synthesizer", synthesizer)
+    workflow.add_node(
+        "guardrail",
+        _audit_node(
+            guardrail,
+            action="guardrail_violation",
+            model_version=GUARDRAIL_MODEL,
+            build_details=_guardrail_details,
+        ),
+    )
+    workflow.add_node(
+        "synthesizer",
+        _audit_node(
+            synthesizer,
+            action="response_synthesized",
+            model_version=SYNTHESIZER_MODEL,
+            build_details=_synthesizer_details,
+        ),
+    )
     workflow.add_node("escalation", _escalation_node)
 
     # Entry point

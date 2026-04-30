@@ -216,3 +216,159 @@ async def test_require_admin_blocks_non_admin(user_client):
         resp = await c.get("/api/v1/admin/audit-log")
 
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Fix A.4 — clinical decision auditing
+# ---------------------------------------------------------------------------
+
+
+def _async_session_cm(db):
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=db)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+async def test_log_clinical_decision_persists_with_hash_and_version():
+    from app.services.audit import log_clinical_decision
+
+    db = _make_db()
+    case_id = uuid.uuid4()
+    entry = await log_clinical_decision(
+        db,
+        case_id=case_id,
+        action="triage_decision",
+        details={"urgency_level": "yellow", "red_flags_detected": ["dolor"]},
+        model_version="gpt-4o-mini@triage",
+    )
+    assert isinstance(entry, AuditLog)
+    assert entry.action == "triage_decision"
+    assert entry.entity_type == "case"
+    assert entry.entity_id == case_id
+    assert entry.details["urgency_level"] == "yellow"
+    assert entry.details["model_version"] == "gpt-4o-mini@triage"
+    assert "inputs_hash" in entry.details
+    assert len(entry.details["inputs_hash"]) == 64
+
+
+async def test_triage_decision_logged():
+    from app.orchestrator.graph import _audit_node, _triage_details, TRIAGE_MODEL
+
+    db = _make_db()
+
+    async def fake_triage(state):
+        return {
+            "triage_level": "yellow",
+            "red_flags": ["dolor torácico"],
+            "triage_confidence": 0.85,
+            "current_node": "triage",
+        }
+
+    state = {"case_id": str(uuid.uuid4()), "current_message": "duele el pecho"}
+
+    with patch("app.orchestrator.graph.async_session", MagicMock(return_value=_async_session_cm(db))):
+        wrapped = _audit_node(
+            fake_triage,
+            action="triage_decision",
+            model_version=TRIAGE_MODEL,
+            build_details=_triage_details,
+        )
+        result = await wrapped(state)
+
+    assert result["triage_level"] == "yellow"
+    db.add.assert_called_once()
+    entry = db.add.call_args.args[0]
+    assert isinstance(entry, AuditLog)
+    assert entry.action == "triage_decision"
+    assert entry.details["urgency_level"] == "yellow"
+    assert entry.details["red_flags_detected"] == ["dolor torácico"]
+    assert entry.details["model_version"] == TRIAGE_MODEL
+    assert "inputs_hash" in entry.details
+
+
+async def test_guardrail_violation_logged():
+    from app.orchestrator.graph import _audit_node, _guardrail_details, GUARDRAIL_MODEL
+
+    db = _make_db()
+
+    async def fake_guardrail(state):
+        return {
+            "guardrail_violations": [{"violation_type": "definitive_diagnosis", "severity": "high"}],
+            "guardrail_interrupt": False,
+            "current_node": "guardrail",
+        }
+
+    state = {"case_id": str(uuid.uuid4())}
+
+    with patch("app.orchestrator.graph.async_session", MagicMock(return_value=_async_session_cm(db))):
+        wrapped = _audit_node(
+            fake_guardrail,
+            action="guardrail_violation",
+            model_version=GUARDRAIL_MODEL,
+            build_details=_guardrail_details,
+        )
+        await wrapped(state)
+
+    db.add.assert_called_once()
+    entry = db.add.call_args.args[0]
+    assert entry.action == "guardrail_violation"
+    assert len(entry.details["violations"]) == 1
+    assert entry.details["interrupt"] is False
+    assert entry.details["model_version"] == GUARDRAIL_MODEL
+    assert "inputs_hash" in entry.details
+
+
+async def test_synthesis_logged():
+    from app.orchestrator.graph import _audit_node, _synthesizer_details, SYNTHESIZER_MODEL
+
+    db = _make_db()
+    response = "Te recomendamos consultar a tu médico.\n\n---\n\nDisclaimer."
+
+    async def fake_synth(state):
+        return {
+            "synthesized_response": response,
+            "attention_level": "24-48h",
+            "current_node": "synthesizer",
+        }
+
+    state = {"case_id": str(uuid.uuid4())}
+
+    with patch("app.orchestrator.graph.async_session", MagicMock(return_value=_async_session_cm(db))):
+        wrapped = _audit_node(
+            fake_synth,
+            action="response_synthesized",
+            model_version=SYNTHESIZER_MODEL,
+            build_details=_synthesizer_details,
+        )
+        await wrapped(state)
+
+    db.add.assert_called_once()
+    entry = db.add.call_args.args[0]
+    assert entry.action == "response_synthesized"
+    assert entry.details["attention_level"] == "24-48h"
+    assert entry.details["response_length"] == len(response)
+    assert entry.details["model_version"] == SYNTHESIZER_MODEL
+    assert "inputs_hash" in entry.details
+
+
+async def test_audit_failure_does_not_block_node():
+    from app.orchestrator.graph import _audit_node, _triage_details, TRIAGE_MODEL
+
+    async def fake_triage(state):
+        return {"triage_level": "green", "red_flags": [], "current_node": "triage"}
+
+    state = {"case_id": str(uuid.uuid4())}
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("DB unavailable")
+
+    with patch("app.orchestrator.graph.async_session", boom):
+        wrapped = _audit_node(
+            fake_triage,
+            action="triage_decision",
+            model_version=TRIAGE_MODEL,
+            build_details=_triage_details,
+        )
+        result = await wrapped(state)
+    assert result["triage_level"] == "green"
