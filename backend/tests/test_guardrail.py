@@ -261,3 +261,62 @@ class TestGuardrailAgent:
         result = await agent(state)
         agent.llm.ainvoke.assert_called_once()
         assert result["current_node"] == "guardrail"
+
+    # ---- Fix A.2 — modify severity must rewrite the patient response ----
+
+    @pytest.mark.asyncio
+    async def test_modify_severity_replaces_response(self):
+        """interruption_level=modify MUST overwrite the patient-facing response."""
+        violation = SafetyViolation(
+            violation_type="prescription_with_dose",
+            description="Prescripción con dosis sin receta",
+            severity="high",
+        )
+        suggested = "Te sugiero consultar a tu médico antes de tomar medicación."
+        mock_check = GuardrailCheck(
+            approved=False,
+            violations=[violation],
+            interruption_level=InterruptionLevel.MODIFY,
+            modifications_suggested=[suggested],
+        )
+        agent = make_agent_with_mock(mock_check)
+        state = make_state(
+            synthesized_response="tomá ibuprofeno 400mg cada 8hs"
+        )
+        result = await agent(state)
+        assert result["synthesized_response"] == suggested
+        assert "ibuprofeno" not in result["synthesized_response"].lower()
+
+    @pytest.mark.asyncio
+    async def test_modify_severity_falls_back_to_original_when_no_suggestion(self):
+        """If modifications_suggested is empty, keep original (do not blank it out)."""
+        violation = SafetyViolation(
+            violation_type="definitive_diagnosis",
+            description="Diagnóstico definitivo",
+            severity="medium",
+        )
+        mock_check = GuardrailCheck(
+            approved=False,
+            violations=[violation],
+            interruption_level=InterruptionLevel.MODIFY,
+            modifications_suggested=[],
+        )
+        agent = make_agent_with_mock(mock_check)
+        original = "El cuadro es compatible con migraña."
+        state = make_state(synthesized_response=original)
+        result = await agent(state)
+        assert result["synthesized_response"] == original
+
+    @pytest.mark.asyncio
+    async def test_observe_severity_does_not_replace_response(self):
+        """OBSERVE level must never overwrite the response."""
+        mock_check = GuardrailCheck(
+            approved=True,
+            interruption_level=InterruptionLevel.OBSERVE,
+            modifications_suggested=["debería ignorarse"],
+        )
+        agent = make_agent_with_mock(mock_check)
+        original = "Recomendamos descanso e hidratación."
+        state = make_state(synthesized_response=original)
+        result = await agent(state)
+        assert result["synthesized_response"] == original

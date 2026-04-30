@@ -26,6 +26,8 @@ class GuardrailAgent:
         """Check current state content for safety violations."""
         violations = []
         interrupt = False
+        # Default: keep the original patient-facing response untouched.
+        final_response = state.get("synthesized_response")
 
         # 1. Check synthesized_response if present (final output — highest priority)
         if state.get("synthesized_response"):
@@ -39,6 +41,15 @@ class GuardrailAgent:
                 violations.extend([v.model_dump() for v in check.violations])
                 if check.interruption_level == InterruptionLevel.INTERRUPT:
                     interrupt = True
+                # Apply MODIFY: rewrite the patient-facing text with the
+                # guardrail's suggestion. Falls back to the original if the
+                # suggestion is empty so we never blank out the response.
+                if check.interruption_level == InterruptionLevel.MODIFY:
+                    suggested = "\n\n".join(
+                        s.strip() for s in check.modifications_suggested if s and s.strip()
+                    )
+                    if suggested:
+                        final_response = suggested
 
         # 2. Check specialist outputs for unsafe content
         for specialty, output in (state.get("specialist_outputs") or {}).items():
@@ -59,11 +70,15 @@ class GuardrailAgent:
                     if check.interruption_level == InterruptionLevel.INTERRUPT:
                         interrupt = True
 
-        return {
+        result = {
             "guardrail_violations": violations,
             "guardrail_interrupt": interrupt,
             "current_node": "guardrail",
         }
+        # Only propagate the response key when we actually had one to evaluate.
+        if state.get("synthesized_response") is not None:
+            result["synthesized_response"] = final_response
+        return result
 
     async def check_content(self, content: str, node_name: str) -> GuardrailCheck:
         """Check a specific piece of content for safety violations.
