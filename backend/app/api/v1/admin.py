@@ -7,17 +7,20 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import crypto
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.graph_cache import clear as clear_graph_cache
 from app.models.audit_log import AuditLog
 from app.models.case import Case
 from app.models.document import DocumentModel
 from app.models.patient import KnowledgeBaseChunk
+from app.models.provider_credential import ProviderCredential
 from app.models.user import User
-from app.schemas.admin import AdminUserPatch
+from app.schemas.admin import AdminUserPatch, CredentialCreate, CredentialRotate
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -512,3 +515,195 @@ async def ingest_kb(
     background_tasks.add_task(run_indexer)
 
     return {"status": "accepted", "message": "KB ingestion started in background"}
+
+
+# ---------------------------------------------------------------------------
+# S4.0.c — Encrypted API key vault
+# ---------------------------------------------------------------------------
+
+
+def _cred_response(cred) -> dict[str, Any]:
+    """Safe credential response — NEVER includes encrypted_key, iv, or tag."""
+    return {
+        "id": str(cred.id),
+        "provider": cred.provider,
+        "label": cred.label,
+        "is_active": cred.is_active,
+        "created_at": cred.created_at.isoformat() if cred.created_at else None,
+        "rotated_at": cred.rotated_at.isoformat() if cred.rotated_at else None,
+        "created_by_user_id": (
+            str(cred.created_by_user_id) if cred.created_by_user_id else None
+        ),
+    }
+
+
+# POST /admin/credentials
+
+
+@router.post("/credentials", status_code=status.HTTP_201_CREATED)
+async def create_credential(
+    body: CredentialCreate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    ciphertext, iv, tag = crypto.encrypt(body.plaintext_key.encode())
+    cred = ProviderCredential(
+        provider=body.provider,
+        label=body.label,
+        encrypted_key=ciphertext,
+        iv=iv,
+        tag=tag,
+        is_active=False,
+        created_by_user_id=admin.id,
+    )
+    db.add(cred)
+    await db.flush()
+
+    if body.activate:
+        await db.execute(
+            sa_update(ProviderCredential)
+            .where(ProviderCredential.provider == body.provider)
+            .where(ProviderCredential.id != cred.id)
+            .values(is_active=False)
+        )
+        cred.is_active = True
+
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="api_key_create",
+        entity_type="api_key",
+        entity_id=cred.id,
+        details={
+            "provider": body.provider,
+            "label": body.label,
+            "activated": body.activate,
+        },
+    )
+    await db.commit()
+    await db.refresh(cred)
+    clear_graph_cache()
+    return _cred_response(cred)
+
+
+# GET /admin/credentials
+
+
+@router.get("/credentials")
+async def list_credentials(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    rows = (
+        await db.execute(
+            select(ProviderCredential).order_by(ProviderCredential.created_at.desc())
+        )
+    ).scalars().all()
+    return {"items": [_cred_response(c) for c in rows]}
+
+
+# PATCH /admin/credentials/{id}/rotate
+
+
+@router.patch("/credentials/{credential_id}/rotate")
+async def rotate_credential(
+    credential_id: uuid.UUID,
+    body: CredentialRotate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(ProviderCredential).where(ProviderCredential.id == credential_id)
+    )
+    cred = result.scalar_one_or_none()
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    ciphertext, iv, tag = crypto.encrypt(body.plaintext_key.encode())
+    cred.encrypted_key = ciphertext
+    cred.iv = iv
+    cred.tag = tag
+    cred.rotated_at = datetime.now(timezone.utc)
+
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="api_key_rotate",
+        entity_type="api_key",
+        entity_id=credential_id,
+        details={"provider": cred.provider, "label": cred.label},
+    )
+    await db.commit()
+    await db.refresh(cred)
+    clear_graph_cache()
+    return _cred_response(cred)
+
+
+# PATCH /admin/credentials/{id}/activate
+
+
+@router.patch("/credentials/{credential_id}/activate")
+async def activate_credential(
+    credential_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    result = await db.execute(
+        select(ProviderCredential).where(ProviderCredential.id == credential_id)
+    )
+    cred = result.scalar_one_or_none()
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    # Deactivate all other credentials for this provider (single-active invariant)
+    await db.execute(
+        sa_update(ProviderCredential)
+        .where(ProviderCredential.provider == cred.provider)
+        .where(ProviderCredential.id != credential_id)
+        .values(is_active=False)
+    )
+    cred.is_active = True
+
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="api_key_activate",
+        entity_type="api_key",
+        entity_id=credential_id,
+        details={"provider": cred.provider, "label": cred.label},
+    )
+    await db.commit()
+    await db.refresh(cred)
+    clear_graph_cache()
+    return _cred_response(cred)
+
+
+# DELETE /admin/credentials/{id}
+
+
+@router.delete("/credentials/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_credential(
+    credential_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(ProviderCredential).where(ProviderCredential.id == credential_id)
+    )
+    cred = result.scalar_one_or_none()
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    await db.delete(cred)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="api_key_delete",
+        entity_type="api_key",
+        entity_id=credential_id,
+        details={"provider": cred.provider, "label": cred.label},
+    )
+    await db.commit()
+    clear_graph_cache()

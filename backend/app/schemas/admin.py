@@ -24,3 +24,19 @@ class AdminUserPatch(BaseModel):
     role: Optional[str] = None
     subscription_tier: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+# ---------------------------------------------------------------------------
+# S4.0.c: Encrypted API key vault schemas
+# ---------------------------------------------------------------------------
+
+
+class CredentialCreate(BaseModel):
+    provider: str
+    label: str
+    plaintext_key: str
+    activate: bool = False  # immediately activate after creation
+
+
+class CredentialRotate(BaseModel):
+    plaintext_key: str

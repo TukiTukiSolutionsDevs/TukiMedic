@@ -33,6 +33,16 @@ _lock: asyncio.Lock = asyncio.Lock()
 # Public API
 # ---------------------------------------------------------------------------
 
+def clear() -> None:
+    """Evict all cached graph instances.
+
+    Called by credential write/activate/delete endpoints so the LLM router
+    picks up the new active credential on the next request.
+    Full invalidation semantics are wired in Batch 4 (S4.0.d-6).
+    """
+    _cache.clear()
+
+
 async def get_or_build_graph(user_id: str, api_key: str):
     """Return a compiled LangGraph for user_id, building fresh if missing or expired.
 
