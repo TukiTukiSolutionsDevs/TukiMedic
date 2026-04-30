@@ -7,9 +7,23 @@ violations and can observe, flag, modify, or interrupt the clinical flow.
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.guardrail.schemas import GuardrailCheck, InterruptionLevel
 from app.agents.guardrail.prompts import GUARDRAIL_SYSTEM_PROMPT
+
+
+# Fail-safe: when the safety LLM is down we cannot prove the content is safe,
+# but interrupting every turn would brick the product. Approve as "observe"
+# only, with an explicit escalation note so ops sees it in logs/audit.
+_GUARDRAIL_FALLBACK = GuardrailCheck(
+    approved=True,
+    violations=[],
+    interruption_level=InterruptionLevel.OBSERVE,
+    modifications_suggested=[],
+    escalation_required=True,
+    escalation_reason="Guardrail LLM unavailable — degraded mode (no safety check ran).",
+)
 
 
 class GuardrailAgent:
@@ -96,4 +110,9 @@ class GuardrailAgent:
                 ),
             },
         ]
-        return await self.llm.ainvoke(messages)
+        return await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_GUARDRAIL_FALLBACK,
+            agent_name="guardrail",
+        )

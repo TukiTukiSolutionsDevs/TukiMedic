@@ -9,12 +9,25 @@ import json
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.medical_board.schemas import MedicalBoardResult
 from app.agents.medical_board.prompts import MEDICAL_BOARD_PROMPT
 
 # Maximum extra rounds the board can request before forcing synthesis
 MAX_EXTRA_ROUNDS = 2
+
+# Fail-safe: force synthesis with partial consensus when the LLM is down.
+# Better to deliver an integrated answer than to loop or 500.
+_MEDICAL_BOARD_FALLBACK = MedicalBoardResult(
+    consensus_level="partial",
+    debate_rounds=1,
+    key_agreements=[],
+    key_disagreements=[],
+    resolution_path="synthesis",
+    moderator_summary="LLM no disponible; cerrando debate y avanzando a síntesis.",
+    challenges_addressed=[],
+)
 
 
 def medical_board_router(state: ClinicalCaseState) -> str:
@@ -126,7 +139,12 @@ class MedicalBoardAgent:
             {"role": "user", "content": user_content},
         ]
 
-        result: MedicalBoardResult = await self.llm.ainvoke(messages)
+        result: MedicalBoardResult = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_MEDICAL_BOARD_FALLBACK,
+            agent_name="medical_board",
+        )
 
         # debate_rounds counts actual board evaluations (starts at 0 in state)
         new_rounds = current_rounds + 1

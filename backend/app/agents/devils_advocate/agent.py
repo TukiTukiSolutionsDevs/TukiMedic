@@ -7,9 +7,21 @@ Runs between Medical Board rounds when disagreement persists.
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.devils_advocate.schemas import ChallengeResult
 from app.agents.devils_advocate.prompts import DEVILS_ADVOCATE_PROMPT
+
+
+# Fail-safe: no challenges, conservative consensus risk. The graph will skip
+# the contrarian round, which is acceptable when the LLM is unavailable.
+_DEVILS_ADVOCATE_FALLBACK = ChallengeResult(
+    challenges_per_specialist=[],
+    alternative_hypotheses=[],
+    unexamined_assumptions=[],
+    false_consensus_risk=0.0,
+    critical_questions=[],
+)
 
 
 class DevilsAdvocateAgent:
@@ -76,7 +88,12 @@ class DevilsAdvocateAgent:
             },
         ]
 
-        result: ChallengeResult = await self.llm.ainvoke(messages)
+        result: ChallengeResult = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_DEVILS_ADVOCATE_FALLBACK,
+            agent_name="devils_advocate",
+        )
 
         # Flatten challenges to list[dict] for state storage
         challenges_dicts = [c.model_dump() for c in result.challenges_per_specialist]

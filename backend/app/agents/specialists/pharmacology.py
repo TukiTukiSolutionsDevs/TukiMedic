@@ -11,6 +11,7 @@ interacciones, efectos adversos o uso de fármacos en embarazo/pediatría.
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.agents.specialists.registry import register
 
 
@@ -116,7 +117,23 @@ Mensaje actual: {state.get('current_message', '')}
 
 Identifica todos los medicamentos mencionados, evalúa interacciones y emite recomendaciones de seguridad farmacológica."""
 
-        result: PharmacologyAnalysis = await structured_llm.ainvoke(prompt)
+        # Fail-safe: empty analysis flagged for human review when LLM is down.
+        fallback = PharmacologyAnalysis(
+            medications_identified=[],
+            interactions=[],
+            warnings=[
+                "LLM de farmacología no disponible — análisis no realizado."
+            ],
+            recommendations=[
+                "Reintentar la consulta o consultar con un farmacólogo clínico."
+            ],
+        )
+        result: PharmacologyAnalysis = await safe_ainvoke(
+            structured_llm,
+            prompt,
+            fallback=fallback,
+            agent_name="specialist_farmacologia",
+        )
 
         # Merge into specialist_outputs (dict pattern, consistent with all agents)
         current_outputs = dict(state.get("specialist_outputs", {}))

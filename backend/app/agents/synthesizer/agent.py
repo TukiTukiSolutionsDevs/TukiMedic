@@ -9,9 +9,26 @@ import json
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.synthesizer.schemas import SynthesizedResponse
 from app.agents.synthesizer.prompts import SYNTHESIZER_SYSTEM_PROMPT
+
+
+# Fail-safe message: tell the user we couldn't process the case and to seek
+# in-person attention. NEVER produce a clinical recommendation in fallback.
+_SYNTHESIZER_FALLBACK = SynthesizedResponse(
+    patient_response=(
+        "Lo siento, en este momento no puedo procesar tu consulta clínica. "
+        "Por favor reintentá en unos minutos. Si tu situación es urgente, "
+        "consultá presencialmente con un profesional o llamá a emergencias."
+    ),
+    clinical_summary="LLM unavailable; returned safe-fallback patient response.",
+    specialties_involved=[],
+    attention_level="24-48h",
+    follow_up_questions=[],
+    alarm_signs=[],
+)
 
 
 # Base disclaimer always concatenated to the patient-facing response.
@@ -139,7 +156,12 @@ class SynthesizerAgent:
         ]
 
         # 3. Generate synthesized response
-        result: SynthesizedResponse = await self.llm.ainvoke(messages)
+        result: SynthesizedResponse = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_SYNTHESIZER_FALLBACK,
+            agent_name="synthesizer",
+        )
 
         # Merge specialties from state if not populated by LLM
         if not result.specialties_involved and specialties_involved:

@@ -8,9 +8,20 @@ consistencia clínica y naturalidad en el lenguaje.
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.anamnesis.schemas import AnamnesisResult, ClinicalFact
 from app.agents.anamnesis.prompts import ANAMNESIS_SYSTEM_PROMPT
+
+
+# Fail-safe: no new questions, no new facts, mark anamnesis as incomplete so
+# the orchestrator does not advance prematurely.
+_ANAMNESIS_FALLBACK = AnamnesisResult(
+    questions=[],
+    extracted_facts=[],
+    completeness_score=0.0,
+    critical_gaps=["LLM no disponible — anamnesis no se pudo completar"],
+)
 
 
 class AnamnesisAgent:
@@ -65,7 +76,12 @@ class AnamnesisAgent:
             "content": state["current_message"],
         })
 
-        result: AnamnesisResult = await self.llm.ainvoke(messages)
+        result: AnamnesisResult = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_ANAMNESIS_FALLBACK,
+            agent_name="anamnesis",
+        )
 
         # Merge new facts with existing — never overwrite, only append non-duplicates
         merged_facts = list(existing_facts)

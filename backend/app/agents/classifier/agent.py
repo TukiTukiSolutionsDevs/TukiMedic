@@ -8,6 +8,7 @@ Model: GPT-4o, Temperature: 0.2.
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.classifier.schemas import ClassificationResult
 from app.agents.classifier.prompts import CLASSIFIER_SYSTEM_PROMPT
@@ -15,6 +16,15 @@ from app.agents.classifier.tools import format_specialty_hints
 
 # Umbral mínimo para activar una especialidad
 WEIGHT_THRESHOLD = 0.4
+
+# Fail-safe: route to general medicine when LLM is unavailable. Generalist
+# is the safest default — covers most cases without missing a specialty.
+_CLASSIFIER_FALLBACK = ClassificationResult(
+    specialties=[],
+    primary_specialty="medicina_general",
+    reasoning="LLM no disponible; derivando a medicina general por defecto.",
+    differential_considerations=[],
+)
 
 
 class ClassifierAgent:
@@ -63,7 +73,12 @@ class ClassifierAgent:
             "content": state["current_message"],
         })
 
-        result: ClassificationResult = await self.llm.ainvoke(messages)
+        result: ClassificationResult = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_CLASSIFIER_FALLBACK,
+            agent_name="classifier",
+        )
 
         # Filter: only activate specialties above threshold
         active = [

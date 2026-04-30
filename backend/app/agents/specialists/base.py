@@ -10,8 +10,33 @@ from abc import ABC, abstractmethod
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.specialists.schemas import SpecialistAnalysis
+
+
+def _specialist_fallback(specialty_name: str) -> SpecialistAnalysis:
+    """Build a fail-safe analysis when the specialist LLM is unavailable.
+
+    Empty differentials + low confidence + needs_referral=True so the rest of
+    the graph treats this specialist as inconclusive instead of authoritative.
+    """
+    return SpecialistAnalysis(
+        specialty_name=specialty_name or "unknown",
+        clinical_impression=(
+            "LLM no disponible; no se pudo realizar el análisis del especialista."
+        ),
+        differential_diagnosis=[],
+        suggested_studies=[],
+        risk_factors=[],
+        recommendations=[
+            "Reintentar la consulta o derivar a evaluación clínica presencial."
+        ],
+        alarm_signs=[],
+        confidence=0.0,
+        needs_referral=True,
+        referral_to=[],
+    )
 
 
 class BaseSpecialistAgent(ABC):
@@ -79,7 +104,12 @@ class BaseSpecialistAgent(ABC):
             {"role": "user", "content": context},
         ]
 
-        result: SpecialistAnalysis = await self.llm.ainvoke(messages)
+        result: SpecialistAnalysis = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_specialist_fallback(self.specialty_name),
+            agent_name=f"specialist_{self.specialty_name or 'unknown'}",
+        )
 
         # Merge into specialist_outputs — do NOT overwrite other specialists
         current_outputs = dict(state.get("specialist_outputs", {}))

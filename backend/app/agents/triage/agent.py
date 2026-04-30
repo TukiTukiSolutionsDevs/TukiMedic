@@ -7,10 +7,22 @@ Usa GPT-4o-mini por velocidad y costo. Temperature 0.0 para consistencia.
 
 from langchain_openai import ChatOpenAI
 
+from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.triage.schemas import TriageResult
 from app.agents.triage.prompts import TRIAGE_SYSTEM_PROMPT
 from app.agents.triage.tools import red_flag_checker
+
+
+# Fail-safe default: yellow + low confidence so the user is steered to seek
+# attention if the LLM is unavailable. NEVER default to green.
+_TRIAGE_FALLBACK = TriageResult(
+    level="yellow",
+    confidence=0.3,
+    red_flags_detected=[],
+    reasoning="LLM no disponible; defaulting to yellow por precaución clínica.",
+    recommended_urgency="24-48h",
+)
 
 
 class TriageAgent:
@@ -55,7 +67,12 @@ class TriageAgent:
                 "content": f"Contexto clínico previo del paciente:\n{facts_str}",
             })
 
-        result: TriageResult = await self.llm.ainvoke(messages)
+        result: TriageResult = await safe_ainvoke(
+            self.llm,
+            messages,
+            fallback=_TRIAGE_FALLBACK,
+            agent_name="triage",
+        )
 
         return {
             "triage_level": result.level,
