@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -24,25 +25,38 @@ from app.services.audit import log_action
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest, req: Request, db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
+@limiter.limit("3/hour")
+async def register(
+    request: Request,
+    body: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
     # Check if email exists
-    result = await db.execute(select(User).where(User.email == request.email))
+    result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
-        email=request.email,
-        password_hash=get_password_hash(request.password),
-        display_name=request.display_name,
+        email=body.email,
+        password_hash=get_password_hash(body.password),
+        display_name=body.display_name,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    ip = req.client.host if req.client else None
-    await log_action(db, user_id=user.id, action="register", entity_type="user",
-                     entity_id=user.id, ip_address=ip)
+    ip = request.client.host if request.client else None
+    await log_action(
+        db,
+        user_id=user.id,
+        action="register",
+        entity_type="user",
+        entity_id=user.id,
+        ip_address=ip,
+    )
     await db.commit()
 
     return TokenResponse(
@@ -52,19 +66,30 @@ async def register(request: RegisterRequest, req: Request, db: AsyncSession = De
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, req: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == request.email))
+@limiter.limit("5/minute")
+async def login(
+    request: Request,
+    body: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(request.password, user.password_hash):
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
-    ip = req.client.host if req.client else None
-    await log_action(db, user_id=user.id, action="login", entity_type="user",
-                     entity_id=user.id, ip_address=ip)
+    ip = request.client.host if request.client else None
+    await log_action(
+        db,
+        user_id=user.id,
+        action="login",
+        entity_type="user",
+        entity_id=user.id,
+        ip_address=ip,
+    )
     await db.commit()
 
     return TokenResponse(
@@ -74,9 +99,14 @@ async def login(request: LoginRequest, req: Request, db: AsyncSession = Depends(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: RefreshRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def refresh_token(
+    request: Request,
+    body: RefreshRequest,
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        payload = decode_token(request.refresh_token)
+        payload = decode_token(body.refresh_token)
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
         user_id = payload.get("sub")
