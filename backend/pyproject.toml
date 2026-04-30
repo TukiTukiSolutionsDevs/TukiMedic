@@ -47,6 +47,12 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "live_llm: marks tests that hit a real LLM endpoint (deselect with -m 'not live_llm')",
+    # Run integration tests: RUN_INTEGRATION=1 poetry run pytest -m integration
+    # Default suite skips them automatically (no Docker required for fast suite).
+    "integration: marks tests that require Docker/testcontainers (run with RUN_INTEGRATION=1 pytest -m integration)",
+]
 
 [dependency-groups]
 dev = [
@@ -55,5 +61,6 @@ dev = [
     "httpx (>=0.28.1,<0.29.0)",
     "ruff (>=0.15.10,<0.16.0)",
     "black (>=26.3.1,<27.0.0)",
-    "fakeredis (>=2.35.0,<3.0.0)"
+    "fakeredis (>=2.35.0,<3.0.0)",
+    "testcontainers[minio,postgres,redis] (>=4.0,<5.0)",
 ]
