@@ -21,7 +21,6 @@ import json
 import uuid
 
 from fastapi import APIRouter
-from jose import JWTError
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
