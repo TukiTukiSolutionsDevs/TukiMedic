@@ -21,7 +21,17 @@ class User(Base):
     biological_sex: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    role: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="customer", server_default="customer"
+    )
+    subscription_tier: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="free", server_default="free"
+    )
+
+    @property
+    def is_admin(self) -> bool:
+        """Compatibility shim — computed from role. Removed in S4.0.d-12."""
+        return self.role == "admin"
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

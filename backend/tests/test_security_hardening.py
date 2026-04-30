@@ -66,6 +66,60 @@ class TestSanitizeFilename:
 
 
 # ===========================================================================
+# S4.0.a-3 — RBAC: UserResponse must expose role and subscription_tier
+# ===========================================================================
+
+from unittest.mock import MagicMock as _MagicMock  # noqa: E402
+
+
+class TestRoleAuthPayloads:
+    """UserResponse schema must include role/subscription_tier (S4.0.a-3)."""
+
+    def test_user_response_has_role_field(self):
+        from app.schemas.auth import UserResponse
+
+        assert "role" in UserResponse.model_fields, \
+            "UserResponse must expose 'role' field"
+
+    def test_user_response_has_subscription_tier_field(self):
+        from app.schemas.auth import UserResponse
+
+        assert "subscription_tier" in UserResponse.model_fields, \
+            "UserResponse must expose 'subscription_tier' field"
+
+    def test_user_response_serializes_customer_role(self):
+        import uuid
+        from app.schemas.auth import UserResponse
+
+        obj = _MagicMock()
+        obj.id = uuid.uuid4()
+        obj.email = "u@x.com"
+        obj.display_name = None
+        obj.is_verified = False
+        obj.role = "customer"
+        obj.subscription_tier = "free"
+
+        r = UserResponse.model_validate(obj)
+        assert r.role == "customer"
+        assert r.subscription_tier == "free"
+
+    def test_user_response_serializes_admin_role(self):
+        import uuid
+        from app.schemas.auth import UserResponse
+
+        obj = _MagicMock()
+        obj.id = uuid.uuid4()
+        obj.email = "admin@x.com"
+        obj.display_name = "Admin"
+        obj.is_verified = True
+        obj.role = "admin"
+        obj.subscription_tier = "free"
+
+        r = UserResponse.model_validate(obj)
+        assert r.role == "admin"
+
+
+# ===========================================================================
 # T2.12 — OCR timeout / page cap
 # ===========================================================================
 

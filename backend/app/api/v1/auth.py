@@ -71,7 +71,13 @@ async def register(
     await db.commit()
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id)}),
+        access_token=create_access_token(
+            {
+                "sub": str(user.id),
+                "role": user.role,
+                "subscription_tier": user.subscription_tier,
+            }
+        ),
         refresh_token=create_refresh_token({"sub": str(user.id)}),
     )
 
@@ -104,7 +110,13 @@ async def login(
     await db.commit()
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id)}),
+        access_token=create_access_token(
+            {
+                "sub": str(user.id),
+                "role": user.role,
+                "subscription_tier": user.subscription_tier,
+            }
+        ),
         refresh_token=create_refresh_token({"sub": str(user.id)}),
     )
 

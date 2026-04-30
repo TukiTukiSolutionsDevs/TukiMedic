@@ -34,6 +34,8 @@ class UserResponse(BaseModel):
     email: str
     display_name: str | None
     is_verified: bool
+    role: str
+    subscription_tier: str
 
     # Pydantic v2 serialises UUID -> str in JSON output automatically.
     model_config = {"from_attributes": True}

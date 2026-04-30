@@ -20,7 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.security import get_password_hash
-from app.main import app
+from app.main import app  # noqa: F401 (also used in register test)
 
 BASE_URL = "http://testserver"
 USER_ID = uuid.uuid4()
@@ -33,6 +33,9 @@ def _make_user(password: str = "Correct-Horse-Battery-Staple-9"):
     user.password_hash = get_password_hash(password)
     user.is_active = True
     user.display_name = "Dr Test"
+    user.is_verified = False
+    user.role = "customer"
+    user.subscription_tier = "free"
     return user
 
 
@@ -172,3 +175,66 @@ async def test_refresh_with_invalid_token_returns_401(client_no_user):
             json={"refresh_token": "not-a-real-jwt"},
         )
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# S4.0.a-3 — JWT role claims and registration defaults
+# ---------------------------------------------------------------------------
+
+async def test_login_jwt_contains_role_claims(client_with_user):
+    """Access JWT from /login must contain role and subscription_tier claims."""
+    from app.core.security import decode_token
+
+    client, user = client_with_user
+    async with client as c:
+        resp = await c.post(
+            "/api/v1/auth/login",
+            json={"email": user.email, "password": "Correct-Horse-Battery-Staple-9"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    payload = decode_token(resp.json()["access_token"])
+    assert payload.get("role") == "customer", \
+        f"JWT must contain role=customer; got: {payload}"
+    assert payload.get("subscription_tier") == "free", \
+        f"JWT must contain subscription_tier=free; got: {payload}"
+
+
+async def test_register_jwt_contains_role_claims():
+    """Access JWT from /register must contain role=customer, subscription_tier=free."""
+    from app.core.security import decode_token
+    from app.core.database import get_db
+
+    async def _get_db():
+        db = AsyncMock()
+        no_user = MagicMock()
+        no_user.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=no_user)
+        db.add = MagicMock()
+        db.commit = AsyncMock()
+
+        async def _refresh(obj):
+            obj.id = uuid.uuid4()
+            obj.role = "customer"
+            obj.subscription_tier = "free"
+
+        db.refresh = AsyncMock(side_effect=_refresh)
+        yield db
+
+    app.dependency_overrides[get_db] = _get_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL) as c:
+        resp = await c.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "newreg@example.com",
+                "password": "Correct-Horse-Battery-Staple-9",
+            },
+        )
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 201, resp.text
+    payload = decode_token(resp.json()["access_token"])
+    assert payload.get("role") == "customer", \
+        f"Registration JWT must have role=customer; got: {payload}"
+    assert payload.get("subscription_tier") == "free", \
+        f"Registration JWT must have subscription_tier=free; got: {payload}"
