@@ -46,7 +46,7 @@ def _lower_graph_timeout():
 
 
 @pytest.mark.integration
-async def test_ws_chat_graph_timeout(ws_url, seed_user, app_server):
+async def test_ws_chat_graph_timeout(ws_url, seed_user, app_server, e2e_session_factory):
     user, token = await seed_user()
 
     timeout_frame: dict | None = None
@@ -102,24 +102,15 @@ async def test_ws_chat_graph_timeout(ws_url, seed_user, app_server):
         "An unhandled exception may have crashed the worker."
     )
 
-    # ── KNOWN GAP: audit log on timeout ──────────────────────────────
-    # The current production code does NOT write an audit log entry when
-    # asyncio.TimeoutError fires in the WS message loop. This is a gap in
-    # the audit trail — operators cannot detect slow/hung graph executions
-    # from the audit table alone.
-    #
-    # Uncommenting the block below would assert the gap and produce a RED test:
-    #
-    # from sqlalchemy import select
-    # from app.models.audit_log import AuditLog
-    # async with e2e_session_factory() as db:
-    #     result = await db.execute(
-    #         select(AuditLog).where(
-    #             AuditLog.user_id == user.id,
-    #             AuditLog.action == "graph_timeout",
-    #         )
-    #     )
-    #     timeout_logs = result.scalars().all()
-    # assert timeout_logs, "BUG: no audit log written for graph timeout"
-    #
-    # TODO: add log_action(action="graph_timeout") in chat.py TimeoutError handler
+    # ── Assertion 4: audit log written for timeout ────────────────────
+    from sqlalchemy import select
+    from app.models.audit_log import AuditLog
+    async with e2e_session_factory() as db:
+        result = await db.execute(
+            select(AuditLog).where(
+                AuditLog.user_id == user.id,
+                AuditLog.action == "graph_timeout",
+            )
+        )
+        timeout_logs = result.scalars().all()
+    assert timeout_logs, "BUG: no audit log written for graph timeout"

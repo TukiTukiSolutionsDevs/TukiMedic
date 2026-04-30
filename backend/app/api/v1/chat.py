@@ -36,6 +36,7 @@ from app.core.security import decode_token
 from app.memory import append_messages, load_messages, retrieve_relevant_facts, store_facts
 from app.memory.pg_timeline import get_patient_timeline, get_or_create_profile, store_timeline_event
 from app.memory.kb_retriever import retrieve_kb_context
+from app.services.audit import log_action
 from app.services.document_context import get_document_context, message_references_documents
 from app.models.case import Case
 from app.models.user import User
@@ -326,6 +327,16 @@ async def websocket_chat(websocket: WebSocket) -> None:
                                 .get("extracted_facts", [])
                             )
             except asyncio.TimeoutError:
+                async with async_session() as db:
+                    await log_action(
+                        db,
+                        user_id=user.id,
+                        action="graph_timeout",
+                        entity_type="case",
+                        entity_id=uuid.UUID(case_id_str),
+                        details={"timeout_seconds": GRAPH_TIMEOUT},
+                    )
+                    await db.commit()
                 await websocket.send_json(
                     {
                         "type": "error",
