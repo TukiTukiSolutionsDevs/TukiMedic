@@ -143,3 +143,46 @@ def test_vault_master_key_valid_accepted(monkeypatch):
         VAULT_MASTER_KEY=valid_key,
     )
     assert s.VAULT_MASTER_KEY == valid_key
+
+
+# ---------------------------------------------------------------------------
+# S4.0.d-9: OPENAI_API_KEY is optional — legacy fallback only
+# ---------------------------------------------------------------------------
+
+
+def test_openai_api_key_not_required(monkeypatch):
+    """Settings MUST boot without OPENAI_API_KEY — it is a legacy fallback."""
+    import base64
+    import secrets as _secrets
+
+    strong_secret = _secrets.token_urlsafe(48)
+    valid_vault_key = base64.b64encode(os.urandom(32)).decode()
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    s = _build_settings(
+        monkeypatch,
+        ENVIRONMENT="test",
+        SECRET_KEY=strong_secret,
+        VAULT_MASTER_KEY=valid_vault_key,
+    )
+    # Empty string is acceptable — key is not required at boot
+    assert s.OPENAI_API_KEY == ""
+
+
+def test_openai_api_key_accepted_when_present(monkeypatch):
+    """When OPENAI_API_KEY is set it is stored as-is (legacy dev workflow)."""
+    import base64
+    import secrets as _secrets
+
+    strong_secret = _secrets.token_urlsafe(48)
+    valid_vault_key = base64.b64encode(os.urandom(32)).decode()
+
+    s = _build_settings(
+        monkeypatch,
+        ENVIRONMENT="test",
+        SECRET_KEY=strong_secret,
+        VAULT_MASTER_KEY=valid_vault_key,
+        OPENAI_API_KEY="sk-legacy-dev-key",
+    )
+    assert s.OPENAI_API_KEY == "sk-legacy-dev-key"

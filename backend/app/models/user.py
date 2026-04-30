@@ -28,10 +28,6 @@ class User(Base):
         String(50), nullable=False, default="free", server_default="free"
     )
 
-    @property
-    def is_admin(self) -> bool:
-        """Compatibility shim — computed from role. Removed in S4.0.d-12."""
-        return self.role == "admin"
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

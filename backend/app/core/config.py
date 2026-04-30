@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # LLM
+    # OPENAI_API_KEY is a LEGACY FALLBACK — NOT required at boot (S4.0.d).
+    # The primary credential path is the encrypted vault (provider_credentials table).
+    # This key is used only by memory/embedding services (retrieve_relevant_facts,
+    # retrieve_kb_context, store_facts) until those services are also vaulted.
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str = ""  # Optional: set to a proxy URL (e.g. Meridian shim)
     ANTHROPIC_API_KEY: str = ""

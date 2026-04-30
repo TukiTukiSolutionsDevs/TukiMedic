@@ -81,7 +81,7 @@ class TestDispatcher:
             MockGM.return_value = mock_instance
             result = await dispatch_specialists(state, api_key="test-key")
 
-        MockGM.assert_called_once_with(api_key="test-key")
+        MockGM.assert_called_once_with(api_key="test-key", base_url=None)
         assert "specialist_outputs" in result
         assert "medicina_general" in result["specialist_outputs"]
 
@@ -98,7 +98,7 @@ class TestDispatcher:
         with patch("app.agents.specialists.dispatcher.get_specialist", return_value=mock_agent) as mock_get:
             result = await dispatch_specialists(state, api_key="test-key")
 
-        mock_get.assert_called_once_with("medicina_interna", "test-key")
+        mock_get.assert_called_once_with("medicina_interna", "test-key", base_url=None)
         assert "specialist_outputs" in result
         assert "medicina_interna" in result["specialist_outputs"]
 
@@ -119,7 +119,7 @@ class TestDispatcher:
         mock_agent_a = AsyncMock(return_value=result_a)
         mock_agent_b = AsyncMock(return_value=result_b)
 
-        def get_spec(name, key):
+        def get_spec(name, key, base_url=None):
             if name == "medicina_interna":
                 return mock_agent_a
             if name == "pediatria":
@@ -151,7 +151,7 @@ class TestDispatcher:
             MockGM.return_value = mock_instance
             result = await dispatch_specialists(state, api_key="test-key")
 
-        MockGM.assert_called_once_with(api_key="test-key")
+        MockGM.assert_called_once_with(api_key="test-key", base_url=None)
         assert "medicina_general" in result["specialist_outputs"]
 
     async def test_dispatch_merges_outputs(self):
@@ -177,7 +177,7 @@ class TestDispatcher:
         mock_agent_a = AsyncMock(return_value=result_a)
         mock_agent_b = AsyncMock(return_value=result_b)
 
-        def get_spec(name, key):
+        def get_spec(name, key, base_url=None):
             if name == "medicina_interna":
                 return mock_agent_a
             if name == "ginecologia":

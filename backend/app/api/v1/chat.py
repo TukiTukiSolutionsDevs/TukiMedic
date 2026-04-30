@@ -250,7 +250,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             # Graph execution
             history = await load_messages(str(user.id), case_id_str)
-            graph = await get_or_build_graph(str(user.id), settings.OPENAI_API_KEY)
+            graph = await get_or_build_graph(str(user.id))
             state = create_initial_state(case_id_str, str(user.id), content)
             state["messages"] = history  # inject conversation history
 

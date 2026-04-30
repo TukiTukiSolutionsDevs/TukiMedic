@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -417,3 +417,61 @@ async def test_delete_writes_audit_log(admin_client, mock_db):
     audit_entries = [o for o in added if isinstance(o, AuditLog)]
     assert len(audit_entries) >= 1
     assert audit_entries[-1].entity_type == "api_key"
+
+
+# ---------------------------------------------------------------------------
+# S4.0.d-5: graph cache is cleared on every credential mutation
+# ---------------------------------------------------------------------------
+
+
+async def test_create_clears_graph_cache(admin_client, mock_db):
+    """POST /admin/credentials must clear the graph cache so the new key is picked up."""
+    with patch("app.api.v1.admin.clear_graph_cache") as mock_clear:
+        async with admin_client as c:
+            await c.post(
+                "/api/v1/admin/credentials",
+                json={"provider": "gemini", "label": "k", "plaintext_key": "sk-x"},
+            )
+    mock_clear.assert_called_once()
+
+
+async def test_rotate_clears_graph_cache(admin_client, mock_db):
+    """PATCH /rotate must clear the graph cache."""
+    cred = _make_cred(cred_id=CRED_ID)
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = cred
+    mock_db.execute = AsyncMock(return_value=fetch_result)
+
+    with patch("app.api.v1.admin.clear_graph_cache") as mock_clear:
+        async with admin_client as c:
+            await c.patch(
+                f"/api/v1/admin/credentials/{CRED_ID}/rotate",
+                json={"plaintext_key": "sk-new"},
+            )
+    mock_clear.assert_called_once()
+
+
+async def test_activate_clears_graph_cache(admin_client, mock_db):
+    """PATCH /activate must clear the graph cache."""
+    cred = _make_cred(cred_id=CRED_ID, is_active=False)
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = cred
+    mock_db.execute = AsyncMock(side_effect=[fetch_result, MagicMock()])
+
+    with patch("app.api.v1.admin.clear_graph_cache") as mock_clear:
+        async with admin_client as c:
+            await c.patch(f"/api/v1/admin/credentials/{CRED_ID}/activate")
+    mock_clear.assert_called_once()
+
+
+async def test_delete_clears_graph_cache(admin_client, mock_db):
+    """DELETE /credentials/{id} must clear the graph cache."""
+    cred = _make_cred(cred_id=CRED_ID)
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = cred
+    mock_db.execute = AsyncMock(return_value=fetch_result)
+
+    with patch("app.api.v1.admin.clear_graph_cache") as mock_clear:
+        async with admin_client as c:
+            await c.delete(f"/api/v1/admin/credentials/{CRED_ID}")
+    mock_clear.assert_called_once()
