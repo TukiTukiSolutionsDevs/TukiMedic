@@ -155,3 +155,155 @@ async def test_get_user_404(admin_client, mock_db):
         resp = await c.get(f"/api/v1/admin/users/{TARGET_ID}")
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# S4.0.b-3 — Test admin user patching
+# ---------------------------------------------------------------------------
+
+
+async def test_patch_user_updates_fields(admin_client, mock_db):
+    user = _make_user_row(user_id=TARGET_ID, role="customer")
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = user
+    mock_db.execute = AsyncMock(return_value=fetch_result)
+
+    async with admin_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"subscription_tier": "pro", "is_active": False},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == str(TARGET_ID)
+    assert "role" in data
+    assert "subscription_tier" in data
+    assert "is_active" in data
+
+
+async def test_patch_user_requires_admin(customer_client):
+    async with customer_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"is_active": False},
+        )
+    assert resp.status_code == 403
+
+
+async def test_patch_user_not_found(admin_client, mock_db):
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    mock_db.execute = AsyncMock(return_value=result)
+
+    async with admin_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"is_active": False},
+        )
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# S4.0.b-5 — Test last-admin demotion guard
+# ---------------------------------------------------------------------------
+
+
+async def test_last_admin_demotion_rejected(admin_client, mock_db):
+    """Only remaining admin cannot be demoted — returns 409."""
+    user = _make_user_row(user_id=TARGET_ID, role="admin")
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = user
+
+    count_result = MagicMock()
+    count_result.scalar.return_value = 1  # only one admin left
+
+    mock_db.execute = AsyncMock(side_effect=[fetch_result, count_result])
+
+    async with admin_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"role": "customer"},
+        )
+
+    assert resp.status_code == 409
+    assert "last admin" in resp.json()["detail"].lower()
+
+
+async def test_non_last_admin_demotion_allowed(admin_client, mock_db):
+    """Demoting an admin when multiple admins exist succeeds."""
+    user = _make_user_row(user_id=TARGET_ID, role="admin")
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = user
+
+    count_result = MagicMock()
+    count_result.scalar.return_value = 2  # two admins — safe to demote one
+
+    mock_db.execute = AsyncMock(side_effect=[fetch_result, count_result])
+
+    async with admin_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"role": "customer"},
+        )
+
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# S4.0.b-7 — Test concurrent admin demotion guard
+# ---------------------------------------------------------------------------
+
+
+async def test_concurrent_demotion_at_least_one_409(admin_client, mock_db):
+    """Two concurrent PATCH demotions of the last admin — at least one must 409."""
+    import asyncio
+
+    user = _make_user_row(user_id=TARGET_ID, role="admin")
+
+    # A single shared result that works for both fetch (.scalar_one_or_none)
+    # and count (.scalar) calls — both requests see count=1 (last admin).
+    shared_result = MagicMock()
+    shared_result.scalar_one_or_none.return_value = user
+    shared_result.scalar.return_value = 1
+    mock_db.execute = AsyncMock(return_value=shared_result)
+
+    async with admin_client as c:
+        r1, r2 = await asyncio.gather(
+            c.patch(f"/api/v1/admin/users/{TARGET_ID}", json={"role": "customer"}),
+            c.patch(f"/api/v1/admin/users/{TARGET_ID}", json={"role": "customer"}),
+        )
+
+    assert r1.status_code == 409 or r2.status_code == 409, (
+        f"Expected at least one 409, got {r1.status_code} and {r2.status_code}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# S4.0.b-9 — Test user management audit logs
+# ---------------------------------------------------------------------------
+
+
+async def test_patch_user_writes_audit_log(admin_client, mock_db):
+    """Successful PATCH writes an audit_log entry with entity_type=user."""
+    from app.models.audit_log import AuditLog
+
+    user = _make_user_row(user_id=TARGET_ID, role="customer")
+    fetch_result = MagicMock()
+    fetch_result.scalar_one_or_none.return_value = user
+    mock_db.execute = AsyncMock(return_value=fetch_result)
+
+    async with admin_client as c:
+        resp = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"subscription_tier": "pro"},
+        )
+
+    assert resp.status_code == 200
+    mock_db.flush.assert_called()
+    added_objects = [call.args[0] for call in mock_db.add.call_args_list]
+    audit_entries = [o for o in added_objects if isinstance(o, AuditLog)]
+    assert len(audit_entries) >= 1
+    entry = audit_entries[-1]
+    assert entry.entity_type == "user"
+    assert entry.action == "user_patch"
