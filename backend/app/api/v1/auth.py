@@ -24,6 +24,7 @@ from app.models.patient import PatientProfile, PatientTimelineEvent
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
+    LoginResponse,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
@@ -82,7 +83,7 @@ async def register(
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 async def login(
     request: Request,
@@ -109,7 +110,7 @@ async def login(
     )
     await db.commit()
 
-    return TokenResponse(
+    return LoginResponse(
         access_token=create_access_token(
             {
                 "sub": str(user.id),
@@ -118,6 +119,7 @@ async def login(
             }
         ),
         refresh_token=create_refresh_token({"sub": str(user.id)}),
+        user=UserResponse.model_validate(user),
     )
 
 

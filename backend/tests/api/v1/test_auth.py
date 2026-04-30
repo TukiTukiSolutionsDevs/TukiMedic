@@ -200,6 +200,24 @@ async def test_login_jwt_contains_role_claims(client_with_user):
         f"JWT must contain subscription_tier=free; got: {payload}"
 
 
+async def test_login_response_includes_user_payload(client_with_user):
+    """Login response must include a 'user' object with role and subscription_tier."""
+    client, user = client_with_user
+    async with client as c:
+        resp = await c.post(
+            "/api/v1/auth/login",
+            json={"email": user.email, "password": "Correct-Horse-Battery-Staple-9"},
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "user" in body, f"Login response missing 'user' key; got keys: {list(body)}"
+    u = body["user"]
+    assert u["role"] == "customer"
+    assert u["subscription_tier"] == "free"
+    assert "id" in u
+    assert "email" in u
+
+
 async def test_register_jwt_contains_role_claims():
     """Access JWT from /register must contain role=customer, subscription_tier=free."""
     from app.core.security import decode_token

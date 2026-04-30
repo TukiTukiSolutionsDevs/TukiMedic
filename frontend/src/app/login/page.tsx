@@ -8,10 +8,20 @@ import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/auth-store'
 
+interface LoginResponseUser {
+  id: string
+  email: string
+  display_name: string | null
+  is_verified: boolean
+  role: string
+  subscription_tier: string
+}
+
 interface LoginResponse {
   access_token: string
   refresh_token: string
   token_type: string
+  user?: LoginResponseUser
 }
 
 /** Decode the JWT payload (base64url → JSON). No verification — client-side role routing only. */
@@ -56,14 +66,28 @@ export default function LoginPage() {
         { authenticated: false, skipRefresh: true },
       )
 
-      const payload = decodeJwtPayload(data.access_token)
-      const role = typeof payload.role === 'string' ? payload.role : 'customer'
-      const subscriptionTier =
-        typeof payload.subscription_tier === 'string' ? payload.subscription_tier : 'free'
-      const userId = typeof payload.sub === 'string' ? payload.sub : ''
+      // Prefer server-provided user payload; fall back to JWT decode if absent
+      let role: string
+      let subscriptionTier: string
+      let userId: string
+      let displayName: string | null
+
+      if (data.user) {
+        role = data.user.role
+        subscriptionTier = data.user.subscription_tier
+        userId = data.user.id
+        displayName = data.user.display_name
+      } else {
+        const payload = decodeJwtPayload(data.access_token)
+        role = typeof payload.role === 'string' ? payload.role : 'customer'
+        subscriptionTier =
+          typeof payload.subscription_tier === 'string' ? payload.subscription_tier : 'free'
+        userId = typeof payload.sub === 'string' ? payload.sub : ''
+        displayName = null
+      }
 
       setAuth(
-        { id: userId, email, displayName: null, role, subscriptionTier },
+        { id: userId, email, displayName, role, subscriptionTier },
         data.access_token,
         data.refresh_token,
       )
