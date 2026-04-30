@@ -1,13 +1,12 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { api, ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/auth-store'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 interface LoginResponse {
   access_token: string
@@ -15,8 +14,19 @@ interface LoginResponse {
   token_type: string
 }
 
+const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
+
+function setAuthCookie() {
+  // Companion cookie read by proxy.ts — does NOT carry the token, just a flag.
+  if (typeof document === 'undefined') return
+  document.cookie = `tuki-auth=1; Path=/; Max-Age=${AUTH_COOKIE_MAX_AGE}; SameSite=Strict${
+    location.protocol === 'https:' ? '; Secure' : ''
+  }`
+}
+
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const setAuth = useAuthStore((s) => s.setAuth)
 
   const [email, setEmail] = useState('')
@@ -30,43 +40,37 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
+      const data = await api.post<LoginResponse>(
+        '/api/v1/auth/login',
+        { email, password },
+        { authenticated: false, skipRefresh: true },
+      )
 
-      if (res.status === 429) {
-        setError('Demasiados intentos. Esperá un minuto e intentá de nuevo.')
-        return
-      }
+      setAuth(
+        { id: '', email, displayName: null },
+        data.access_token,
+        data.refresh_token,
+      )
+      setAuthCookie()
 
-      if (!res.ok) {
-        // 401 invalid creds, 422 validation error, 403 disabled — all surface as
-        // a single user-friendly message. Detail is logged for the dev console.
-        if (res.status === 401) {
+      const next = searchParams.get('next')
+      const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/chat'
+      router.push(safeNext)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 429) {
+          setError('Demasiados intentos. Esperá un minuto e intentá de nuevo.')
+        } else if (err.status === 401) {
           setError('Email o contraseña incorrectos.')
-        } else if (res.status === 403) {
+        } else if (err.status === 403) {
           setError('Cuenta deshabilitada. Contactá al administrador.')
         } else {
           setError('No pudimos iniciar sesión. Intentá de nuevo.')
         }
-        return
+      } else {
+        console.error('login failed', err)
+        setError('No pudimos contactar al servidor. Revisá tu conexión.')
       }
-
-      const data = (await res.json()) as LoginResponse
-
-      // The backend doesn't yet return a user object on /login. Derive a
-      // minimal placeholder from the email until /auth/me is wired in.
-      setAuth(
-        { id: '', email, displayName: null },
-        data.access_token,
-      )
-
-      router.push('/chat')
-    } catch (err) {
-      console.error('login failed', err)
-      setError('No pudimos contactar al servidor. Revisá tu conexión.')
     } finally {
       setLoading(false)
     }
