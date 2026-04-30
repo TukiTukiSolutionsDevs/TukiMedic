@@ -35,7 +35,7 @@ from app.agents.synthesizer import SynthesizerAgent
 from app.core.database import async_session  # noqa: F401 — patched in tests
 
 from app.services.audit import log_clinical_decision
-from app.services.llm_router import ProviderCredentialDTO
+from app.services.llm_router import ProviderCredentialDTO, get_chat_model
 from app.agents.synthesizer.agent import BASE_DISCLAIMER, DISCLAIMER_SEPARATOR
 
 log = logging.getLogger(__name__)
@@ -239,17 +239,16 @@ def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     Returns:
         Compiled LangGraph StateGraph ready for execution.
     """
-    api_key = cred.api_key
-    base_url = cred.base_url
-
-    # Instantiate agents with credential from the vault
-    triage = TriageAgent(api_key=api_key, base_url=base_url)
-    anamnesis = AnamnesisAgent(api_key=api_key, base_url=base_url)
-    classifier = ClassifierAgent(api_key=api_key, base_url=base_url)
-    medical_board = MedicalBoardAgent(api_key=api_key, base_url=base_url)
-    devils_advocate = DevilsAdvocateAgent(api_key=api_key, base_url=base_url)
-    guardrail = GuardrailAgent(api_key=api_key, base_url=base_url)
-    synthesizer = SynthesizerAgent(api_key=api_key, base_url=base_url)
+    # Resolve provider-correct models from the router — no model name hardcoded here.
+    # "fast" tier: high-throughput nodes (triage, anamnesis, specialists, etc.)
+    # "smart" tier: deliberative nodes that need deeper reasoning (medical_board)
+    triage = TriageAgent(chat_model=get_chat_model("fast", cred, temperature=0.0))
+    anamnesis = AnamnesisAgent(chat_model=get_chat_model("fast", cred, temperature=0.3))
+    classifier = ClassifierAgent(chat_model=get_chat_model("fast", cred, temperature=0.2))
+    medical_board = MedicalBoardAgent(chat_model=get_chat_model("smart", cred, temperature=0.2))
+    devils_advocate = DevilsAdvocateAgent(chat_model=get_chat_model("fast", cred, temperature=0.5))
+    guardrail = GuardrailAgent(chat_model=get_chat_model("fast", cred, temperature=0.0))
+    synthesizer = SynthesizerAgent(chat_model=get_chat_model("fast", cred, temperature=0.4))
 
     # Build graph
     workflow = StateGraph(ClinicalCaseState)
@@ -270,7 +269,9 @@ def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     workflow.add_node("classification", classifier)
 
     async def specialist_node(state: ClinicalCaseState) -> dict:
-        return await dispatch_specialists(state, api_key=api_key, base_url=base_url)
+        # Fresh model per invocation — specialists share tier but each gets their own instance
+        spec_model = get_chat_model("fast", cred, temperature=0.3)
+        return await dispatch_specialists(state, chat_model=spec_model)
 
     workflow.add_node("specialists", specialist_node)
     workflow.add_node("medical_board", medical_board)
