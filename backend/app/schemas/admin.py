@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class AdminUserResponse(BaseModel):
@@ -24,6 +24,20 @@ class AdminUserPatch(BaseModel):
     role: Optional[str] = None
     subscription_tier: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("subscription_tier")
+    @classmethod
+    def validate_tier(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("free", "paid"):
+            raise ValueError(f"subscription_tier must be 'free' or 'paid', got {v!r}")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("customer", "admin"):
+            raise ValueError(f"role must be 'customer' or 'admin', got {v!r}")
+        return v
 
 
 # ---------------------------------------------------------------------------

@@ -171,7 +171,7 @@ async def test_patch_user_updates_fields(admin_client, mock_db):
     async with admin_client as c:
         resp = await c.patch(
             f"/api/v1/admin/users/{TARGET_ID}",
-            json={"subscription_tier": "pro", "is_active": False},
+            json={"subscription_tier": "paid", "is_active": False},
         )
 
     assert resp.status_code == 200
@@ -202,6 +202,21 @@ async def test_patch_user_not_found(admin_client, mock_db):
             json={"is_active": False},
         )
     assert resp.status_code == 404
+
+
+async def test_patch_user_rejects_invalid_subscription_tier(admin_client):
+    """AdminUserPatch must reject subscription_tier values other than free/paid (422)."""
+    async with admin_client as c:
+        resp_pro = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"subscription_tier": "pro"},
+        )
+        resp_enterprise = await c.patch(
+            f"/api/v1/admin/users/{TARGET_ID}",
+            json={"subscription_tier": "enterprise"},
+        )
+    assert resp_pro.status_code == 422, f"Expected 422 for 'pro', got {resp_pro.status_code}"
+    assert resp_enterprise.status_code == 422, f"Expected 422 for 'enterprise', got {resp_enterprise.status_code}"
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +311,7 @@ async def test_patch_user_writes_audit_log(admin_client, mock_db):
     async with admin_client as c:
         resp = await c.patch(
             f"/api/v1/admin/users/{TARGET_ID}",
-            json={"subscription_tier": "pro"},
+            json={"subscription_tier": "paid"},
         )
 
     assert resp.status_code == 200
