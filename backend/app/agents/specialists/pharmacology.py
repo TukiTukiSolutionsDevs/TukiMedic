@@ -77,12 +77,22 @@ class PharmacologyAgent:
 
     specialty_name = "farmacologia"
 
-    def __init__(self, api_key: str):
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0,
-            api_key=api_key,
-        )
+    def __init__(
+        self,
+        chat_model=None,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
+        if chat_model is not None:
+            # Store raw model; __call__ calls with_structured_output(PharmacologyAnalysis)
+            self.llm = chat_model
+        else:
+            self.llm = ChatOpenAI(
+                model="gpt-4o-mini",
+                temperature=0,
+                api_key=api_key,
+            )
 
     async def __call__(self, state: dict) -> dict:
         """Analyze medications and interactions from the clinical case."""

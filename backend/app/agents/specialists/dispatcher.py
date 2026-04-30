@@ -15,15 +15,21 @@ from app.agents.specialists.general_medicine import GeneralMedicineAgent
 
 
 async def dispatch_specialists(
-    state: dict, api_key: str, base_url: str | None = None
+    state: dict,
+    chat_model=None,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> dict:
     """
     Dispatch to active specialists in parallel. Fallback to general medicine.
 
     Args:
         state: ClinicalCaseState dict — reads active_specialties, specialist_outputs.
-        api_key: Provider API key injected into each specialist agent.
-        base_url: Optional base URL override (e.g. Gemini OpenAI-compat endpoint).
+        chat_model: Pre-built ChatOpenAI from llm_router (preferred). When provided,
+            specialists use the provider-correct model tier.
+        api_key: Legacy fallback — provider API key. Used when chat_model is None.
+        base_url: Legacy fallback — base URL override for non-OpenAI providers.
 
     Returns:
         Partial state update with merged specialist_outputs dict.
@@ -32,7 +38,10 @@ async def dispatch_specialists(
 
     # --- Fallback: no active specialties ---
     if not active:
-        agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
+        if chat_model is not None:
+            agent = GeneralMedicineAgent(chat_model=chat_model)
+        else:
+            agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
         return await agent(state)
 
     # --- Resolve agents from registry ---
@@ -40,13 +49,16 @@ async def dispatch_specialists(
     for spec in active:
         # active_specialties items are dicts: {name, weight, reason}
         name = spec if isinstance(spec, str) else spec.get("name", "")
-        agent = get_specialist(name, api_key, base_url=base_url)
+        agent = get_specialist(name, api_key, base_url=base_url, chat_model=chat_model)
         if agent is not None:
             agents.append(agent)
 
     # --- Fallback: no matching agents in registry ---
     if not agents:
-        agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
+        if chat_model is not None:
+            agent = GeneralMedicineAgent(chat_model=chat_model)
+        else:
+            agent = GeneralMedicineAgent(api_key=api_key, base_url=base_url)
         return await agent(state)
 
     # --- Run all matched specialists in parallel ---

@@ -22,11 +22,24 @@ def register(cls: type) -> type:
     return cls
 
 
-def get_specialist(name: str, api_key: str, base_url: str | None = None) -> object | None:
-    """Instancia y retorna un especialista por nombre. None si no existe."""
+def get_specialist(
+    name: str,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    *,
+    chat_model=None,
+) -> object | None:
+    """Instancia y retorna un especialista por nombre. None si no existe.
+
+    Prefer passing *chat_model* (pre-built ChatOpenAI from llm_router) so
+    the specialist uses the provider-correct model tier. Falls back to the
+    legacy api_key/base_url path for backward compatibility.
+    """
     cls = REGISTRY.get(name)
     if cls is None:
         return None
+    if chat_model is not None:
+        return cls(chat_model=chat_model)
     return cls(api_key=api_key, base_url=base_url)
 
 
