@@ -33,6 +33,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests marked @pytest.mark.live_llm (real LLM calls).",
     )
+    parser.addoption(
+        "--integration",
+        action="store_true",
+        default=False,
+        help="Run tests marked @pytest.mark.integration (require Docker/testcontainers).",
+    )
 
 
 def pytest_configure(config):
@@ -40,19 +46,30 @@ def pytest_configure(config):
         "markers",
         "live_llm: marks tests that hit a real LLM endpoint (deselect with -m 'not live_llm')",
     )
+    config.addinivalue_line(
+        "markers",
+        "integration: marks tests that require Docker/testcontainers "
+        "(run with --integration or RUN_INTEGRATION=1)",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip @live_llm tests unless --live-llm or RUN_LIVE_LLM=1."""
-    enabled = config.getoption("--live-llm") or os.environ.get("RUN_LIVE_LLM") == "1"
-    if enabled:
-        return
+    """Skip @live_llm and @integration tests unless explicitly enabled."""
+    run_live_llm = config.getoption("--live-llm") or os.environ.get("RUN_LIVE_LLM") == "1"
+    run_integration = config.getoption("--integration") or os.environ.get("RUN_INTEGRATION") == "1"
+
     skip_live = pytest.mark.skip(
         reason="live_llm: pass --live-llm or set RUN_LIVE_LLM=1 to enable"
     )
+    skip_integration = pytest.mark.skip(
+        reason="integration: pass --integration or set RUN_INTEGRATION=1 to enable"
+    )
+
     for item in items:
-        if "live_llm" in item.keywords:
+        if "live_llm" in item.keywords and not run_live_llm:
             item.add_marker(skip_live)
+        if "integration" in item.keywords and not run_integration:
+            item.add_marker(skip_integration)
 
 
 @pytest.fixture(autouse=True)
