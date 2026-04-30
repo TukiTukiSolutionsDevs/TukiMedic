@@ -27,13 +27,23 @@ _ANAMNESIS_FALLBACK = AnamnesisResult(
 class AnamnesisAgent:
     """Agente de anamnesis clínica — nodo de LangGraph."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str | None = None):
-        self.llm = ChatOpenAI(
-            model=model,
-            temperature=0.3,
-            api_key=api_key,
-            base_url=base_url,
-        ).with_structured_output(AnamnesisResult)
+    def __init__(
+        self,
+        chat_model=None,
+        *,
+        api_key: str | None = None,
+        model: str = "gpt-4o",
+        base_url: str | None = None,
+    ):
+        if chat_model is not None:
+            self.llm = chat_model.with_structured_output(AnamnesisResult)
+        else:
+            self.llm = ChatOpenAI(
+                model=model,
+                temperature=0.3,
+                api_key=api_key,
+                base_url=base_url,
+            ).with_structured_output(AnamnesisResult)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:
         """Execute anamnesis and return partial state update."""
