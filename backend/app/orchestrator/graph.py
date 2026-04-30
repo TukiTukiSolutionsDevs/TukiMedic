@@ -36,6 +36,7 @@ from app.core.database import async_session  # noqa: F401 — patched in tests
 
 from app.services.audit import log_clinical_decision
 from app.services.llm_router import ProviderCredentialDTO
+from app.agents.synthesizer.agent import BASE_DISCLAIMER, DISCLAIMER_SEPARATOR
 
 log = logging.getLogger(__name__)
 
@@ -196,16 +197,21 @@ def create_initial_state(case_id: str, user_id: str, message: str) -> ClinicalCa
 # ---------------------------------------------------------------------------
 
 async def _escalation_node(state: ClinicalCaseState) -> dict:
-    """Handle escalation — generate urgent response without full analysis."""
+    """Handle escalation — generate urgent response without full analysis.
+
+    IMPORTANT: always appends DISCLAIMER_SEPARATOR + BASE_DISCLAIMER so the
+    legal medical disclaimer is present on every escalation message.
+    """
     red_flags_str = ", ".join(state.get("red_flags", []))
+    clinical_message = (
+        f"⚠️ ATENCIÓN: Se detectaron señales que requieren atención médica inmediata.\n\n"
+        f"Señales detectadas: {red_flags_str}\n\n"
+        f"Por favor, acude a urgencias o llama a servicios de emergencia lo antes posible.\n\n"
+        f"Este sistema no puede atender emergencias médicas. "
+        f"Si estás en peligro inmediato, llama al número de emergencias de tu país."
+    )
     return {
-        "synthesized_response": (
-            f"⚠️ ATENCIÓN: Se detectaron señales que requieren atención médica inmediata.\n\n"
-            f"Señales detectadas: {red_flags_str}\n\n"
-            f"Por favor, acude a urgencias o llama a servicios de emergencia lo antes posible.\n\n"
-            f"Este sistema no puede atender emergencias médicas. "
-            f"Si estás en peligro inmediato, llama al número de emergencias de tu país."
-        ),
+        "synthesized_response": clinical_message + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER,
         "attention_level": "urgencia",
         "current_node": "escalation",
     }

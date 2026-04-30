@@ -21,6 +21,7 @@ from app.orchestrator.graph import (
 )
 from app.orchestrator.state import ClinicalCaseState
 from app.services.llm_router import ProviderCredentialDTO
+from app.agents.synthesizer.agent import BASE_DISCLAIMER, DISCLAIMER_SEPARATOR
 
 
 def _make_cred(
@@ -238,6 +239,29 @@ class TestEscalationNode:
         result = asyncio.run(_escalation_node(_make_state(red_flags=flags)))
         for flag in flags:
             assert flag in result["synthesized_response"]
+
+    def test_response_contains_base_disclaimer(self):
+        """CRITICAL safety: escalation MUST append the legal medical disclaimer."""
+        result = asyncio.run(
+            _escalation_node(_make_state(triage_level="red", red_flags=["chest_pain"]))
+        )
+        assert BASE_DISCLAIMER in result["synthesized_response"]
+
+    def test_response_contains_disclaimer_separator(self):
+        """Disclaimer must be separated from the clinical message by DISCLAIMER_SEPARATOR."""
+        result = asyncio.run(
+            _escalation_node(_make_state(triage_level="red", red_flags=["chest_pain"]))
+        )
+        assert DISCLAIMER_SEPARATOR in result["synthesized_response"]
+
+    def test_disclaimer_appears_after_clinical_message(self):
+        """Disclaimer must come AFTER the emergency message, not before."""
+        result = asyncio.run(
+            _escalation_node(_make_state(triage_level="red", red_flags=["dolor_pecho"]))
+        )
+        text = result["synthesized_response"]
+        assert text.index(DISCLAIMER_SEPARATOR) > 0
+        assert text.endswith(BASE_DISCLAIMER)
 
 
 # ---------------------------------------------------------------------------
