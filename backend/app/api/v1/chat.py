@@ -335,12 +335,20 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 )
                 await websocket.close(code=1011)
                 break
-            except Exception as exc:
+            except Exception:
+                # T3.4 — never echo internal exceptions to the client. The
+                # full traceback is logged server-side; the user sees a
+                # bounded, generic error code so we don't leak provider
+                # details / SQL / paths.
+                import logging
+                logging.getLogger(__name__).exception(
+                    "graph execution failed for case=%s", case_id_str
+                )
                 await websocket.send_json(
                     {
                         "type": "error",
                         "code": "graph_error",
-                        "message": str(exc),
+                        "message": "Hubo un error procesando tu consulta. Reintentá en unos minutos.",
                     }
                 )
                 await websocket.close(code=1011)

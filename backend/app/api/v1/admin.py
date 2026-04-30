@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -357,9 +357,13 @@ async def kb_stats(
 
 @router.post("/kb/ingest", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_kb(
+    background_tasks: BackgroundTasks,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    """Trigger KB ingestion. Runs after the response is sent (T3.5 — was
+    `asyncio.create_task(...)` without holding a reference, which let the
+    GC cancel the task at any moment)."""
     from app.services.kb_indexer import run_indexer
 
     await log_action(
@@ -370,8 +374,8 @@ async def ingest_kb(
     )
     await db.commit()
 
-    # Fire and forget — indexer handles its own DB session
-    import asyncio
-    asyncio.create_task(run_indexer())
+    # FastAPI keeps the reference alive until the task finishes; if the
+    # indexer raises, the framework logs it via its task error handler.
+    background_tasks.add_task(run_indexer)
 
     return {"status": "accepted", "message": "KB ingestion started in background"}
