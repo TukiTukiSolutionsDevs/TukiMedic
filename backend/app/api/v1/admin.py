@@ -316,7 +316,7 @@ async def delete_kb_chunk(
     if chunk is None:
         raise HTTPException(status_code=404, detail="KB chunk not found")
 
-    db.delete(chunk)
+    await db.delete(chunk)
     await log_action(
         db,
         user_id=admin.id,

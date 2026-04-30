@@ -201,5 +201,5 @@ async def delete_document(
         raise HTTPException(status_code=403, detail="Access denied.")
 
     await storage_client.delete_file(doc.storage_path)
-    db.delete(doc)
+    await db.delete(doc)
     await db.commit()

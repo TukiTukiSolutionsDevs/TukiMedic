@@ -46,7 +46,8 @@ def _make_regular():
 def _make_db():
     db = AsyncMock()
     db.add = MagicMock()
-    db.delete = MagicMock()
+    # AsyncSession.delete() IS awaitable in SQLAlchemy 2.0 — must be AsyncMock
+    db.delete = AsyncMock()
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
     db.execute = AsyncMock()
@@ -220,6 +221,22 @@ async def test_kb_delete_chunk(admin_client, mock_db):
     assert resp.status_code == 204
     mock_db.delete.assert_called_once_with(chunk)
     mock_db.commit.assert_called_once()
+
+
+async def test_admin_delete_kb_entry_removes_row(admin_client, mock_db):
+    """Regression: db.delete(chunk) MUST be awaited — otherwise SQLAlchemy 2.0
+    AsyncSession returns a coroutine and the DELETE never reaches PostgreSQL."""
+    chunk = _make_kb_chunk()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = chunk
+    mock_db.execute = AsyncMock(return_value=result)
+
+    async with admin_client as c:
+        resp = await c.delete(f"/api/v1/admin/kb/{KB_ID}")
+
+    assert resp.status_code == 204
+    mock_db.delete.assert_awaited_once_with(chunk)
+    mock_db.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

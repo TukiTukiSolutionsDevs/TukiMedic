@@ -58,7 +58,8 @@ def _make_doc(doc_id=DOC_ID, user_id=USER_ID, status="pending"):
 def _make_db():
     db = AsyncMock()
     db.add = MagicMock()       # sync in SQLAlchemy
-    db.delete = MagicMock()    # sync in SQLAlchemy
+    # AsyncSession.delete() IS awaitable in SQLAlchemy 2.0 — must be AsyncMock
+    db.delete = AsyncMock()
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
     db.execute = AsyncMock()
@@ -299,3 +300,24 @@ async def test_delete_document(client, mock_db):
     mock_storage.delete_file.assert_called_once_with(doc.storage_path)
     mock_db.delete.assert_called_once_with(doc)
     mock_db.commit.assert_called_once()
+
+
+async def test_delete_document_removes_db_row(client, mock_db):
+    """Regression: db.delete(doc) MUST be awaited — without await SQLAlchemy
+    2.0 AsyncSession returns a coroutine that never emits the DELETE."""
+    doc = _make_doc()
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = doc
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    with patch("app.api.v1.documents.storage_client") as mock_storage:
+        mock_storage.delete_file = AsyncMock()
+
+        async with client as c:
+            response = await c.delete(f"/api/v1/documents/{DOC_ID}")
+
+    assert response.status_code == 204
+    # The actual bug: delete must be AWAITED, not just called.
+    mock_db.delete.assert_awaited_once_with(doc)
+    mock_db.commit.assert_awaited_once()
