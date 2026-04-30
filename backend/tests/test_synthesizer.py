@@ -149,14 +149,18 @@ def make_mock_response(
     attention_level: str = "24-48h",
     specialties_involved: list = None,
     alarm_signs: list = None,
+    disclaimer: str | None = None,
 ) -> SynthesizedResponse:
-    return SynthesizedResponse(
+    kwargs = dict(
         patient_response=patient_response,
         clinical_summary=clinical_summary,
         attention_level=attention_level,
         specialties_involved=specialties_involved or [],
         alarm_signs=alarm_signs or [],
     )
+    if disclaimer is not None:
+        kwargs["disclaimer"] = disclaimer
+    return SynthesizedResponse(**kwargs)
 
 
 def make_agent_with_mock(mock_result: SynthesizedResponse) -> SynthesizerAgent:
@@ -251,3 +255,34 @@ class TestSynthesizerAgent:
         messages = call_args[0][0]
         user_content = next(m["content"] for m in messages if m["role"] == "user")
         assert "edad" in user_content or "45" in user_content
+
+    # ---- Fix A.1 — Disclaimer must reach the patient ----
+
+    @pytest.mark.asyncio
+    async def test_synthesized_response_contains_disclaimer(self):
+        """LLM-returned disclaimer MUST be appended to the patient-facing text."""
+        custom_disclaimer = (
+            "Esto no es un diagnóstico ni reemplaza la consulta médica."
+        )
+        agent = make_agent_with_mock(
+            make_mock_response(
+                patient_response="Tomá descanso e hidratación.",
+                disclaimer=custom_disclaimer,
+            )
+        )
+        result = await agent(make_state())
+        assert custom_disclaimer in result["synthesized_response"]
+        assert "Tomá descanso e hidratación." in result["synthesized_response"]
+
+    @pytest.mark.asyncio
+    async def test_synthesized_response_contains_default_disclaimer_when_missing(self):
+        """Even if the LLM forgets, a base disclaimer must be present."""
+        agent = make_agent_with_mock(
+            make_mock_response(
+                patient_response="Hidratate y descansá.",
+                disclaimer="",  # LLM returned empty
+            )
+        )
+        result = await agent(make_state())
+        assert "MedAgent" in result["synthesized_response"]
+        assert "no reemplaza" in result["synthesized_response"].lower()

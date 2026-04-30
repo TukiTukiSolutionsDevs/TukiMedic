@@ -14,6 +14,29 @@ from app.agents.synthesizer.schemas import SynthesizedResponse
 from app.agents.synthesizer.prompts import SYNTHESIZER_SYSTEM_PROMPT
 
 
+# Base disclaimer always concatenated to the patient-facing response.
+# Even when the LLM omits or returns an empty disclaimer, this MUST appear.
+BASE_DISCLAIMER = (
+    "MedAgent es una herramienta de orientación; "
+    "no reemplaza la consulta médica profesional."
+)
+DISCLAIMER_SEPARATOR = "\n\n---\n\n"
+
+
+def _compose_patient_text(patient_response: str, disclaimer: str | None) -> str:
+    """Append disclaimer to the patient response with a visible separator.
+
+    Falls back to BASE_DISCLAIMER if the LLM returned an empty or missing one.
+    """
+    body = (patient_response or "").strip()
+    extra = (disclaimer or "").strip()
+    if not extra:
+        extra = BASE_DISCLAIMER
+    if not body:
+        return extra
+    return f"{body}{DISCLAIMER_SEPARATOR}{extra}"
+
+
 class SynthesizerAgent:
     """Agente sintetizador — nodo final del grafo de orquestación."""
 
@@ -123,7 +146,9 @@ class SynthesizerAgent:
             result.specialties_involved = specialties_involved
 
         return {
-            "synthesized_response": result.patient_response,
+            "synthesized_response": _compose_patient_text(
+                result.patient_response, result.disclaimer
+            ),
             "attention_level": result.attention_level,
             "current_node": "synthesizer",
         }
