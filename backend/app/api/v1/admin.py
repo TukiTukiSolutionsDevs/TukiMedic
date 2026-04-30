@@ -17,6 +17,7 @@ from app.models.case import Case
 from app.models.document import DocumentModel
 from app.models.patient import KnowledgeBaseChunk
 from app.models.user import User
+from app.schemas.admin import AdminUserPatch
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -198,6 +199,138 @@ async def get_audit_log(
             }
             for r in rows
         ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/users
+# ---------------------------------------------------------------------------
+
+
+@router.get("/users")
+async def list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    offset = (page - 1) * page_size
+
+    total = (await db.execute(select(func.count(User.id)))).scalar() or 0
+
+    rows = (
+        await db.execute(
+            select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size)
+        )
+    ).scalars().all()
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "display_name": u.display_name,
+                "role": u.role,
+                "subscription_tier": u.subscription_tier,
+                "is_active": u.is_active,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in rows
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/users/{user_id}
+# ---------------------------------------------------------------------------
+
+
+@router.get("/users/{user_id}")
+async def get_user(
+    user_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "subscription_tier": user.subscription_tier,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# PATCH /admin/users/{user_id}
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/users/{user_id}")
+async def patch_user(
+    user_id: uuid.UUID,
+    body: AdminUserPatch,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Last-admin guard: SELECT FOR UPDATE serialises concurrent demotions.
+    if body.role is not None and body.role != "admin" and user.role == "admin":
+        count_result = await db.execute(
+            select(func.count(User.id))
+            .where(User.role == "admin")
+            .with_for_update()
+        )
+        admin_count = count_result.scalar() or 0
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot demote the last admin",
+            )
+
+    changes: dict[str, Any] = {}
+    if body.role is not None:
+        changes["role"] = body.role
+        user.role = body.role
+    if body.subscription_tier is not None:
+        changes["subscription_tier"] = body.subscription_tier
+        user.subscription_tier = body.subscription_tier
+    if body.is_active is not None:
+        changes["is_active"] = body.is_active
+        user.is_active = body.is_active
+
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="user_patch",
+        entity_type="user",
+        entity_id=user_id,
+        details={"changes": changes, "target_user_id": str(user_id)},
+    )
+    await db.commit()
+    await db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "subscription_tier": user.subscription_tier,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
 
