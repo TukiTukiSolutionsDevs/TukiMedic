@@ -5,6 +5,8 @@ interface User {
   id: string
   email: string
   displayName: string | null
+  role: string
+  subscriptionTier: string
 }
 
 interface AuthState {
