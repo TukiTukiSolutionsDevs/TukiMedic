@@ -14,6 +14,16 @@ interface LoginResponse {
   token_type: string
 }
 
+/** Decode the JWT payload (base64url → JSON). No verification — client-side role routing only. */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(b64))
+  } catch {
+    return {}
+  }
+}
+
 const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 function setAuthCookie() {
@@ -46,16 +56,22 @@ export default function LoginPage() {
         { authenticated: false, skipRefresh: true },
       )
 
+      const payload = decodeJwtPayload(data.access_token)
+      const role = typeof payload.role === 'string' ? payload.role : 'customer'
+      const subscriptionTier =
+        typeof payload.subscription_tier === 'string' ? payload.subscription_tier : 'free'
+      const userId = typeof payload.sub === 'string' ? payload.sub : ''
+
       setAuth(
-        { id: '', email, displayName: null },
+        { id: userId, email, displayName: null, role, subscriptionTier },
         data.access_token,
         data.refresh_token,
       )
       setAuthCookie()
 
       const next = searchParams.get('next')
-      const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/chat'
-      router.push(safeNext)
+      const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null
+      router.push(safeNext ?? (role === 'admin' ? '/admin' : '/chat'))
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 429) {
