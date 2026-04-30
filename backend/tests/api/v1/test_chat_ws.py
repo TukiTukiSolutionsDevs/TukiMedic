@@ -280,6 +280,61 @@ class TestMessageProcessing:
 # ---------------------------------------------------------------------------
 
 
+class TestClinicalSafetyA5:
+    """Regression tests for fix A.5 — done frame must reflect post-guardrail response."""
+
+    def test_done_carries_guardrail_rewrite_when_present(
+        self, client, mock_user, user_access_token
+    ):
+        """If guardrail emits a modified response, `done` must use the modified one."""
+
+        async def _events_with_guardrail_rewrite(state, config, version="v2"):
+            yield {"event": "on_chain_start", "name": "synthesizer", "data": {}}
+            yield {
+                "event": "on_chain_end",
+                "name": "synthesizer",
+                "data": {"output": {"synthesized_response": "UNSAFE: tomá amoxicilina 500mg"}},
+            }
+            yield {"event": "on_chain_start", "name": "guardrail", "data": {}}
+            yield {
+                "event": "on_chain_end",
+                "name": "guardrail",
+                "data": {"output": {"synthesized_response": "Te sugiero consultar a tu médico antes de tomar medicación."}},
+            }
+
+        with _session_patch(mock_user), _redis_patch(), _graph_patch(_events_with_guardrail_rewrite):
+            with client.websocket_connect("/api/v1/chat/ws") as ws:
+                _do_auth(ws, user_access_token)
+                ws.send_json({"type": "message", "content": "tengo dolor de garganta"})
+                frames = _drain_to_done(ws)
+                done = frames[-1]
+                assert done["type"] == "done"
+                assert "amoxicilina" not in done["response"]
+                assert "consultar a tu médico" in done["response"]
+
+    def test_done_uses_escalation_response_when_red_flag(
+        self, client, mock_user, user_access_token
+    ):
+        """Triage-red path: escalation emits the urgent message; done must carry it."""
+
+        async def _events_escalation(state, config, version="v2"):
+            yield {"event": "on_chain_start", "name": "triage", "data": {}}
+            yield {
+                "event": "on_chain_end",
+                "name": "escalation",
+                "data": {"output": {"synthesized_response": "⚠️ ATENCIÓN: acude a urgencias."}},
+            }
+
+        with _session_patch(mock_user), _redis_patch(), _graph_patch(_events_escalation):
+            with client.websocket_connect("/api/v1/chat/ws") as ws:
+                _do_auth(ws, user_access_token)
+                ws.send_json({"type": "message", "content": "dolor en el pecho irradiado"})
+                frames = _drain_to_done(ws)
+                done = frames[-1]
+                assert done["type"] == "done"
+                assert "ATENCIÓN" in done["response"]
+
+
 class TestErrorHandling:
     def test_graph_error_sends_error_frame(
         self, client, mock_user, user_access_token

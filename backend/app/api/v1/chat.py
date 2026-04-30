@@ -13,7 +13,12 @@ Protocol:
 Event → frame mapping (LangGraph astream_events v2):
   on_chain_start  (not internal)  → {"type":"agent_start","agent":"<name>"}
   on_chat_model_stream            → {"type":"token","content":"<chunk>"}
-  on_chain_end    (synthesizer)   → {"type":"done","response":"...","case_id":"..."}
+
+The `done` frame is NOT emitted from event handler — it is emitted at the
+end of the graph stream so the response is post-guardrail (clinical safety
+fix A.5). Tokens streamed during synthesizer ARE seen by the user, but the
+authoritative final response carried by the `done` frame reflects any
+guardrail rewrites (severity=modify) and disclaimer concatenation.
 """
 
 import asyncio
@@ -72,8 +77,21 @@ async def _heartbeat(ws: WebSocket, stop: asyncio.Event) -> None:
 # LangGraph event → WebSocket frame mapper
 # ---------------------------------------------------------------------------
 
+# Nodes whose `synthesized_response` output is considered the authoritative
+# final response for the `done` frame. Order matters: later wins.
+# - synthesizer: produces the candidate response
+# - guardrail:   may rewrite it (severity=modify) or interrupt
+# - escalation:  emits the urgent-care fallback when triage flags red
+_FINAL_RESPONSE_NODES = ("synthesizer", "guardrail", "escalation")
+
+
 async def _handle_event(ws: WebSocket, event: dict, case_id: str) -> None:
-    """Map one LangGraph astream_events v2 event to a WebSocket frame, or no-op."""
+    """Map one LangGraph astream_events v2 event to a WebSocket frame, or no-op.
+
+    NOTE: the `done` frame is intentionally NOT emitted here. It is sent
+    after the graph stream terminates so the response is post-guardrail.
+    See clinical safety fix A.5.
+    """
     kind: str = event.get("event", "")
     name: str = event.get("name", "")
 
@@ -85,11 +103,6 @@ async def _handle_event(ws: WebSocket, event: dict, case_id: str) -> None:
         content = getattr(chunk, "content", "") or ""
         if content:
             await ws.send_json({"type": "token", "content": content})
-
-    elif kind == "on_chain_end" and name == "synthesizer":
-        output = event.get("data", {}).get("output", {})
-        response = output.get("synthesized_response", "")
-        await ws.send_json({"type": "done", "response": response, "case_id": case_id})
 
 
 # ---------------------------------------------------------------------------
@@ -257,16 +270,20 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 async with asyncio.timeout(GRAPH_TIMEOUT):
                     async for event in graph.astream_events(state, config, version="v2"):
                         await _handle_event(websocket, event, case_id_str)
-                        # Capture synthesized response for memory persistence
+                        # Capture authoritative response from final-response
+                        # nodes. Order in graph guarantees later overwrites:
+                        # synthesizer → guardrail (may rewrite) → escalation.
                         if (
                             event.get("event") == "on_chain_end"
-                            and event.get("name") == "synthesizer"
+                            and event.get("name") in _FINAL_RESPONSE_NODES
                         ):
-                            response_text = (
+                            new_response = (
                                 event.get("data", {})
                                 .get("output", {})
-                                .get("synthesized_response", "")
+                                .get("synthesized_response")
                             )
+                            if new_response:
+                                response_text = new_response
                         # Capture extracted clinical facts from anamnesis node
                         if (
                             event.get("event") == "on_chain_end"
@@ -297,6 +314,19 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 )
                 await websocket.close(code=1011)
                 break
+
+            # ── Emit final `done` frame post-guardrail (clinical safety A.5) ──
+            # response_text was captured from the LAST chain_end of synthesizer
+            # / guardrail / escalation, so it reflects any guardrail rewrite or
+            # the escalation message. If somehow none fired, we still emit a
+            # done frame with empty response so the client knows the turn ended.
+            await websocket.send_json(
+                {
+                    "type": "done",
+                    "response": response_text or "",
+                    "case_id": case_id_str,
+                }
+            )
 
             # Persist exchange to memory (only on successful graph completion)
             if response_text is not None:
