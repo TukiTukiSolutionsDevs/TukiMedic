@@ -37,6 +37,7 @@ from app.memory import append_messages, load_messages, retrieve_relevant_facts, 
 from app.memory.pg_timeline import get_patient_timeline, get_or_create_profile, store_timeline_event
 from app.memory.kb_retriever import retrieve_kb_context
 from app.services.document_context import get_document_context, message_references_documents
+from app.models.case import Case
 from app.models.user import User
 from app.orchestrator.graph import create_initial_state
 
@@ -200,7 +201,37 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 )
                 continue
 
-            case_id_str: str = msg.get("case_id") or str(uuid.uuid4())
+            client_case_id = msg.get("case_id")
+            case_id_str: str = client_case_id or str(uuid.uuid4())
+
+            # ── Case ownership validation (T2.3) ──────────────────────────
+            # If the client supplied a case_id (not auto-generated), check
+            # that the case is owned by the authenticated user. A malicious
+            # client could otherwise resume / poison another user's session.
+            if client_case_id:
+                try:
+                    case_uuid = uuid.UUID(client_case_id)
+                except (TypeError, ValueError):
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "invalid_message",
+                            "message": "case_id must be a UUID",
+                        }
+                    )
+                    continue
+
+                async with async_session() as db:
+                    existing = await db.get(Case, case_uuid)
+                if existing is not None and existing.user_id != user.id:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "forbidden",
+                            "message": "Case does not belong to this user",
+                        }
+                    )
+                    continue
 
             # Rate limiting — Redis INCR + EXPIRE pattern
             rate_key = f"ws:ratelimit:{user.id}"

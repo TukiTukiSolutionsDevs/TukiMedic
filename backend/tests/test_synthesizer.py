@@ -198,7 +198,12 @@ class TestSynthesizerAgent:
 
     @pytest.mark.asyncio
     async def test_specialties_from_state_when_llm_returns_empty(self):
-        """If LLM returns empty specialties_involved, agent fills from state keys."""
+        """If LLM returns empty specialties_involved, agent fills from state keys.
+
+        Verified by inspecting the prompt sent to the LLM — it MUST include the
+        specialty section headers (### cardiologia, ### neurologia) so the
+        model's reasoning is grounded on the specialist outputs from state.
+        """
         agent = make_agent_with_mock(make_mock_response(specialties_involved=[]))
         state = make_state(
             specialist_outputs={
@@ -208,7 +213,19 @@ class TestSynthesizerAgent:
         )
         result = await agent(state)
         agent.llm.ainvoke.assert_called_once()
+
+        # The user message must include the specialty section for both keys.
+        call_args = agent.llm.ainvoke.call_args
+        messages = call_args[0][0]
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        assert "### cardiologia" in user_content
+        assert "### neurologia" in user_content
+        assert "Análisis de especialistas" in user_content
+
+        # And the surface contract still holds: agent emitted a synthesizer node.
         assert result["current_node"] == "synthesizer"
+        assert isinstance(result["synthesized_response"], str)
+        assert result["synthesized_response"] != ""
 
     @pytest.mark.asyncio
     async def test_builds_context_with_triage_info(self):

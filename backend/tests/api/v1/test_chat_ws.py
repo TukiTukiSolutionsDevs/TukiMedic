@@ -280,6 +280,99 @@ class TestMessageProcessing:
 # ---------------------------------------------------------------------------
 
 
+class TestCaseOwnershipT23:
+    """T2.3 — case_id from another user must be rejected."""
+
+    def _session_patch_with_case(self, mock_user, case_owner_id):
+        """Patch async_session.get(Case, ...) to return a Case owned by case_owner_id.
+
+        Importantly, db.get returns the same mock for any model — so we mark
+        the returned object's user_id with the supplied owner. The chat code
+        relies on .user_id existing to do the ownership check.
+        """
+        from app.models.case import Case as CaseModel
+
+        case_obj = MagicMock(spec=CaseModel)
+        case_obj.id = uuid.uuid4()
+        case_obj.user_id = case_owner_id
+
+        async def _get(model, pk):
+            # User auth path → return mock_user; Case ownership check → case_obj
+            if model is CaseModel:
+                return case_obj
+            return mock_user
+
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(side_effect=_get)
+        mock_db.add = MagicMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+
+        return patch("app.api.v1.chat.async_session", MagicMock(return_value=mock_cm)), case_obj
+
+    def test_case_id_from_another_user_rejected(
+        self, client, mock_user, user_access_token
+    ):
+        """Client supplies a case_id whose user_id != authed user → forbidden."""
+        other_user_id = uuid.uuid4()
+        session_patch, _ = self._session_patch_with_case(mock_user, other_user_id)
+
+        with session_patch, _redis_patch(), _graph_patch():
+            with client.websocket_connect("/api/v1/chat/ws") as ws:
+                _do_auth(ws, user_access_token)
+                ws.send_json(
+                    {
+                        "type": "message",
+                        "content": "test",
+                        "case_id": str(uuid.uuid4()),
+                    }
+                )
+                msg = ws.receive_json()
+                assert msg["type"] == "error"
+                assert msg["code"] == "forbidden"
+
+    def test_case_id_invalid_uuid_rejected(
+        self, client, mock_user, user_access_token
+    ):
+        """Non-UUID case_id is rejected without DB hit."""
+        with _session_patch(mock_user), _redis_patch(), _graph_patch():
+            with client.websocket_connect("/api/v1/chat/ws") as ws:
+                _do_auth(ws, user_access_token)
+                ws.send_json(
+                    {
+                        "type": "message",
+                        "content": "test",
+                        "case_id": "not-a-uuid",
+                    }
+                )
+                msg = ws.receive_json()
+                assert msg["type"] == "error"
+                assert msg["code"] == "invalid_message"
+
+    def test_case_id_owned_by_user_accepted(
+        self, client, mock_user, user_access_token
+    ):
+        """Case owned by the authed user → continues to graph."""
+        session_patch, _ = self._session_patch_with_case(mock_user, mock_user.id)
+
+        with session_patch, _redis_patch(), _graph_patch():
+            with client.websocket_connect("/api/v1/chat/ws") as ws:
+                _do_auth(ws, user_access_token)
+                ws.send_json(
+                    {
+                        "type": "message",
+                        "content": "test",
+                        "case_id": str(uuid.uuid4()),
+                    }
+                )
+                frames = _drain_to_done(ws)
+                assert frames[-1]["type"] == "done"
+
+
 class TestClinicalSafetyA5:
     """Regression tests for fix A.5 — done frame must reflect post-guardrail response."""
 
