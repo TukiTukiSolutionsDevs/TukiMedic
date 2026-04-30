@@ -1,0 +1,60 @@
+# Tuki-Medic pre-commit configuration.
+#
+# Install once per dev:    pipx install pre-commit && pre-commit install
+# Run manually:            pre-commit run --all-files
+#
+# Backend hooks run only on Python files inside backend/, frontend hooks
+# run only on TS/TSX/CSS inside frontend/. The generic hygiene hooks run
+# everywhere.
+
+repos:
+  # -----------------------------------------------------------------------
+  # Generic hygiene
+  # -----------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.lock$|package-lock\.json$|poetry\.lock$'
+      - id: end-of-file-fixer
+        exclude: '\.lock$|package-lock\.json$|poetry\.lock$|\.svg$'
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  # -----------------------------------------------------------------------
+  # Backend — ruff (lint + import sort + format) and black
+  # -----------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.10
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: '^backend/(app|tests)/.*\.py$'
+      - id: ruff-format
+        files: '^backend/(app|tests)/.*\.py$'
+
+  - repo: https://github.com/psf/black
+    rev: 26.3.1
+    hooks:
+      - id: black
+        files: '^backend/(app|tests)/.*\.py$'
+        args: ["--line-length=100"]
+
+  # -----------------------------------------------------------------------
+  # Frontend — prettier + eslint via local hooks (mirror npm scripts)
+  # -----------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: eslint-frontend
+        name: eslint (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx --no-install eslint --max-warnings=0'
+        files: '^frontend/src/.*\.(ts|tsx|js|jsx)$'
+        pass_filenames: false
+        require_serial: true

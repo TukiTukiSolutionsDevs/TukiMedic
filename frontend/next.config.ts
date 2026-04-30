@@ -45,6 +45,9 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
+  // Emit a self-contained production build (server.js + minimal node_modules)
+  // so the Docker runtime image stays small and doesn't need npm install.
+  output: "standalone",
   async headers() {
     return [
       {

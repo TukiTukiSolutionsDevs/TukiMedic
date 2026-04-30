@@ -1,0 +1,30 @@
+# Build / runtime artefacts
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+coverage.xml
+
+# Local dev / IDE
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+.DS_Store
+
+# Docs / git
+.git
+.gitignore
+docs
+*.md
+!README.md
+
+# Test artefacts
+tests
+.pytest_cache
