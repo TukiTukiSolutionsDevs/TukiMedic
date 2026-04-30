@@ -144,20 +144,32 @@ def run_migrations(pg_sync_url):
     try:
         app_settings.DATABASE_URL = pg_sync_url
         cfg = Config(ALEMBIC_INI)
-        command.upgrade(cfg, "head")
+        # "heads" (plural) runs ALL current leaf revisions.
+        # The migration DAG has two heads (e5f6g7h8i9j0 / h8i9j0k1l2m3);
+        # "head" (singular) raises MultipleHeads. This is a pre-existing
+        # schema issue — see follow-up task: merge migration branches.
+        command.upgrade(cfg, "heads")
     finally:
         app_settings.DATABASE_URL = original
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def engine(pg_async_url, run_migrations):
-    """Session-scoped async SQLAlchemy engine pointing at the container DB."""
+    """Per-test async SQLAlchemy engine.
+
+    Function-scoped so each test gets an engine tied to its own event loop.
+    pytest-asyncio creates a new event loop per test function; a session-scoped
+    AsyncEngine would hold pool connections to the first test's (now-closed) loop,
+    causing 'Event loop is closed' on the second test.
+
+    The engine object is a cheap Python wrapper — actual DB connections are lazy.
+    migrations are still run only once (session-scoped run_migrations).
+    """
     eng = create_async_engine(pg_async_url, echo=False, pool_pre_ping=True)
     yield eng
-    # Container handles DB teardown; engine GC is fine here.
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def session_factory(engine):
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

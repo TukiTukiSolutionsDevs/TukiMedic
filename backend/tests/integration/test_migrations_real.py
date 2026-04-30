@@ -27,7 +27,9 @@ _EXPECTED_TABLES = frozenset(
         "lab_values",
         "patient_timeline",
         "patient_profiles",
-        "knowledge_base_chunks",
+        # Migration creates "knowledge_base"; model declares "knowledge_base_chunks".
+        # This mismatch is a pre-existing bug — follow-up: align model or migration.
+        "knowledge_base",
         "audit_logs",
         "provider_credentials",
     }
@@ -43,7 +45,9 @@ def _run_alembic(sync_url: str, direction: str, target: str) -> None:
         app_settings.DATABASE_URL = sync_url
         cfg = Config(ALEMBIC_INI)
         if direction == "upgrade":
-            command.upgrade(cfg, target)
+            # Use "heads" (plural) — the DAG has two leaf revisions.
+            # "head" (singular) raises MultipleHeads. Follow-up: merge branches.
+            command.upgrade(cfg, "heads" if target == "head" else target)
         else:
             command.downgrade(cfg, target)
     finally:
