@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,16 @@ from app.core.storage import storage_client
 
 configure_logging()
 log = logging.getLogger(__name__)
+
+# Propagate LLM env vars so LangChain's ChatOpenAI picks them up. The
+# library reads OPENAI_API_KEY / OPENAI_API_BASE from os.environ when
+# `api_key` / `base_url` aren't passed explicitly. Setting them via
+# settings.* lets a single .env drive both the config and LangChain.
+if settings.OPENAI_API_KEY:
+    os.environ.setdefault("OPENAI_API_KEY", settings.OPENAI_API_KEY)
+if settings.OPENAI_API_BASE:
+    os.environ.setdefault("OPENAI_API_BASE", settings.OPENAI_API_BASE)
+    os.environ.setdefault("OPENAI_BASE_URL", settings.OPENAI_API_BASE)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

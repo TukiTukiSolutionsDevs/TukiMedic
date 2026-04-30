@@ -46,7 +46,9 @@ class Settings(BaseSettings):
 
     # LLM
     OPENAI_API_KEY: str = ""
+    OPENAI_API_BASE: str = ""  # Optional: set to a proxy URL (e.g. Meridian shim)
     ANTHROPIC_API_KEY: str = ""
+    LLM_MODEL: str = "gpt-4o-mini"  # Default model used by agents that don't override
 
     # S3/MinIO
     S3_ENDPOINT: str = "http://localhost:9000"

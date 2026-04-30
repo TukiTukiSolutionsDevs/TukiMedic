@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel, EmailStr, Field
 
 # Hard floor for password length. 8 is the OWASP minimum baseline; the form
@@ -28,9 +30,10 @@ class RefreshRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: str
+    id: uuid.UUID
     email: str
     display_name: str | None
     is_verified: bool
 
+    # Pydantic v2 serialises UUID -> str in JSON output automatically.
     model_config = {"from_attributes": True}
