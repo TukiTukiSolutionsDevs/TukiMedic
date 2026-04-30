@@ -102,7 +102,17 @@ async def _run_ws_one_message(
     fake_ws = _FakeWebSocket([auth_msg, chat_msg])
 
     mock_db = AsyncMock()
-    mock_db.get = AsyncMock(return_value=mock_user)
+
+    # db.get(model, pk) — return User for User lookup, None for Case lookup
+    # so the T2.3 ownership check treats this as a new case.
+    async def _smart_get(model, pk):
+        from app.models.user import User as UserModel
+
+        if model is UserModel:
+            return mock_user
+        return None
+
+    mock_db.get = AsyncMock(side_effect=_smart_get)
 
     mock_session = MagicMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_db)
@@ -297,24 +307,32 @@ class TestUserIsolation:
 # ---------------------------------------------------------------------------
 
 
+# UUID-formatted case_id required since chat.py validates the field as UUID
+# (T2.3 — case ownership check). The two redis-memory WS tests must use a
+# real UUID so they don't get rejected with code=invalid_message.
+_TEST_CASE_ID = "11111111-1111-1111-1111-111111111111"
+
+
 class TestWsMessageLoadsHistory:
     def test_ws_message_loads_history(self):
         """load_messages is called with (user_id, case_id) before graph execution."""
-        mock_graph = _make_mock_graph([_done_event("case1")])
+        mock_graph = _make_mock_graph([_done_event(_TEST_CASE_ID)])
         load_mock = AsyncMock(return_value=[])
         append_mock = AsyncMock()
 
         asyncio.run(
             _run_ws_one_message(
                 content="hola doctor",
-                case_id="case1",
+                case_id=_TEST_CASE_ID,
                 mock_graph=mock_graph,
                 load_mock=load_mock,
                 append_mock=append_mock,
             )
         )
 
-        load_mock.assert_called_once_with("00000000-0000-0000-0000-000000000001", "case1")
+        load_mock.assert_called_once_with(
+            "00000000-0000-0000-0000-000000000001", _TEST_CASE_ID
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -326,14 +344,14 @@ class TestWsMessageSavesAfterDone:
     def test_ws_message_saves_after_done(self):
         """append_messages is called after graph completes with the synthesized response."""
         response_text = "Parece una cefalea tensional."
-        mock_graph = _make_mock_graph([_done_event("case1", response_text)])
+        mock_graph = _make_mock_graph([_done_event(_TEST_CASE_ID, response_text)])
         load_mock = AsyncMock(return_value=[])
         append_mock = AsyncMock()
 
         asyncio.run(
             _run_ws_one_message(
                 content="me duele la cabeza",
-                case_id="case1",
+                case_id=_TEST_CASE_ID,
                 mock_graph=mock_graph,
                 load_mock=load_mock,
                 append_mock=append_mock,
@@ -342,7 +360,7 @@ class TestWsMessageSavesAfterDone:
 
         append_mock.assert_called_once_with(
             "00000000-0000-0000-0000-000000000001",
-            "case1",
+            _TEST_CASE_ID,
             "me duele la cabeza",
             response_text,
         )
