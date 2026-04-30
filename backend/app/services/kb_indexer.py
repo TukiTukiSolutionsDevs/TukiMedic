@@ -103,3 +103,55 @@ async def index_topic(
         )
         db.add(kb)
     await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Background indexer — called by POST /admin/kb/ingest
+# ---------------------------------------------------------------------------
+
+HEALTH_TOPICS = [
+    "hypertension",
+    "diabetes mellitus",
+    "asthma",
+    "heart failure",
+    "liver disease",
+]
+
+
+async def run_indexer() -> dict[str, int]:
+    """Background task: fetch MedlinePlus health topics and index them into the KB.
+
+    Creates its own DB session — background tasks do not receive FastAPI DI.
+    Graceful no-op per topic when fetch returns no articles (e.g. network down).
+
+    Returns:
+        {"indexed": N, "skipped": M} where N = chunks stored, M = topics with
+        no articles returned.
+    """
+    from app.core.config import settings
+    from app.core.database import async_session
+
+    api_key = settings.OPENAI_API_KEY
+    indexed = 0
+    skipped = 0
+
+    async with async_session() as db:
+        for topic in HEALTH_TOPICS:
+            articles = await fetch_medlineplus(topic)
+            if not articles:
+                skipped += 1
+                continue
+            for article in articles:
+                if article.get("content"):
+                    await index_topic(
+                        db,
+                        title=article["title"],
+                        content=article["content"],
+                        source="medlineplus",
+                        specialty_tags=[topic],
+                        api_key=api_key,
+                    )
+                    indexed += 1
+        await db.commit()
+
+    return {"indexed": indexed, "skipped": skipped}
