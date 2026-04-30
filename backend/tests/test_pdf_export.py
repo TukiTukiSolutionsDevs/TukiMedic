@@ -81,6 +81,48 @@ def client(mock_db):
 # 1. test_generate_case_pdf_returns_bytes
 # ---------------------------------------------------------------------------
 
+async def test_pdf_only_includes_labs_from_requested_case():
+    """Regression: PDF lab query must filter by case_id, not only by user_id.
+    Otherwise a patient with multiple cases sees ALL their labs in every PDF
+    (PII leak across cases)."""
+    from app.services.pdf_export import generate_case_pdf
+
+    db = _make_db()
+    case = _make_case()
+
+    case_result = MagicMock()
+    case_result.scalar_one_or_none.return_value = case
+
+    empty_scalars = MagicMock()
+    empty_scalars.scalars.return_value.all.return_value = []
+
+    db.execute = AsyncMock(side_effect=[
+        case_result,    # 1. case
+        empty_scalars,  # 2. messages
+        empty_scalars,  # 3. clinical facts
+        empty_scalars,  # 4. labs       <-- the query under test
+        empty_scalars,  # 5. timeline
+    ])
+
+    await generate_case_pdf(db, str(CASE_ID), str(USER_ID))
+
+    # Inspect the 4th execute call — labs query.
+    labs_call = db.execute.call_args_list[3]
+    labs_stmt = labs_call.args[0]
+    compiled = labs_stmt.compile()
+    sql = str(compiled)
+
+    assert "case_id" in sql.lower(), (
+        f"PDF labs query must filter by case_id but SQL was:\n{sql}"
+    )
+    # Verify the bound case_id parameter equals the requested CASE_ID
+    bound = {str(v) for v in compiled.params.values()}
+    assert str(CASE_ID) in bound, (
+        f"PDF labs query must bind the requested case_id ({CASE_ID}). "
+        f"Bound params were: {bound}"
+    )
+
+
 async def test_generate_case_pdf_returns_bytes():
     from app.services.pdf_export import generate_case_pdf
 

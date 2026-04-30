@@ -119,10 +119,13 @@ async def generate_case_pdf(
     )
     facts = facts_result.scalars().all()
 
+    # IMPORTANT: filter by case_id AND user_id — a patient can have multiple
+    # cases and labs from one case must NOT appear in another case's PDF.
     labs_result = await db.execute(
         select(LabValueModel)
         .join(DocumentModel, LabValueModel.document_id == DocumentModel.id)
         .where(DocumentModel.user_id == user_id)
+        .where(DocumentModel.case_id == case_id)
     )
     lab_values = labs_result.scalars().all()
 
