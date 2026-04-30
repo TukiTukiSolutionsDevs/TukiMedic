@@ -7,7 +7,13 @@ secret.
 
 Generate a strong key with:
     python -c "import secrets; print(secrets.token_urlsafe(48))"
+
+VAULT_MASTER_KEY must be a base64-encoded 32-byte AES-256 key. The app
+refuses to start without it. Generate with:
+    python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
 """
+import base64
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -49,6 +55,10 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = ""  # Optional: set to a proxy URL (e.g. Meridian shim)
     ANTHROPIC_API_KEY: str = ""
     LLM_MODEL: str = "gpt-4o-mini"  # Default model used by agents that don't override
+
+    # Encrypted API key vault (S4.0.c)
+    # Base64-encoded 32-byte AES-256-GCM master key. Required at boot.
+    VAULT_MASTER_KEY: str = ""
 
     # S3/MinIO
     S3_ENDPOINT: str = "http://localhost:9000"
@@ -94,6 +104,29 @@ class Settings(BaseSettings):
                 "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
             )
 
+        return v
+
+    @field_validator("VAULT_MASTER_KEY")
+    @classmethod
+    def _validate_vault_master_key(cls, v: str) -> str:
+        if not v:
+            raise ValueError(
+                "VAULT_MASTER_KEY is required. Generate with: "
+                'python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"'
+            )
+        try:
+            key_bytes = base64.b64decode(v)
+        except Exception:
+            raise ValueError(
+                "VAULT_MASTER_KEY must be a valid base64-encoded string. "
+                'Generate with: python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"'
+            )
+        if len(key_bytes) != 32:
+            raise ValueError(
+                f"VAULT_MASTER_KEY must decode to exactly 32 bytes (AES-256); "
+                f"got {len(key_bytes)}. "
+                'Re-generate with: python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"'
+            )
         return v
 
 
