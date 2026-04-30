@@ -43,6 +43,40 @@ class TestRedFlagChecker:
         matches = red_flag_checker("DOLOR TORÁCICO AGUDO")
         assert len(matches) > 0
 
+    # ---- Fix A.3 — robust matching: negations and accent normalization ----
+
+    def test_red_flag_negation_not_matched(self):
+        """A negated symptom must NOT trigger a red flag."""
+        matches = red_flag_checker("no tengo dolor en el pecho")
+        cardio = [m for m in matches if m.category == "cardiovascular"]
+        assert cardio == []
+
+    def test_red_flag_negation_sin_not_matched(self):
+        """The negator 'sin' must also block the match."""
+        matches = red_flag_checker("vengo sin dolor en el pecho ni nada")
+        cardio = [m for m in matches if m.category == "cardiovascular"]
+        assert cardio == []
+
+    def test_red_flag_with_accent_normalized(self):
+        """Accent-stripped match still triggers — matches against bare ASCII."""
+        # Trigger in YAML is "dolor torácico agudo"; user message lacks accent.
+        matches = red_flag_checker("tengo dolor toracico agudo desde anoche")
+        assert any(m.category == "cardiovascular" for m in matches)
+
+    def test_red_flag_with_irradiation_matches(self):
+        """Positive case: chest pain with arm radiation must match."""
+        matches = red_flag_checker(
+            "tengo dolor en el pecho que se irradia al brazo izquierdo"
+        )
+        assert any(m.category == "cardiovascular" for m in matches)
+
+    def test_red_flag_word_boundary_avoids_substring_false_positive(self):
+        """Substring inside a longer word must not trigger (e.g. 'pecho' inside 'despechos')."""
+        # Using a synthetic example that would match naively but should not via word-boundaries.
+        matches = red_flag_checker("nada de despechospasados que me molesten")
+        cardio = [m for m in matches if m.category == "cardiovascular"]
+        assert cardio == []
+
 
 # ========== Symptom Scorer Tests ==========
 
