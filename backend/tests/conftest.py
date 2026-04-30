@@ -1,8 +1,18 @@
 """
 Global test fixtures for the medagent backend test suite.
 """
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+import os
+import secrets
+
+# Force a strong, deterministic-per-process SECRET_KEY BEFORE any `app.*`
+# import. The production validator in `app.core.config` rejects placeholder
+# values (e.g. "change-me-in-production") and short keys at module import
+# time, which would otherwise prevent test collection.
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ["SECRET_KEY"] = secrets.token_urlsafe(48)
+
+import pytest  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
