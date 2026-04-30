@@ -78,3 +78,32 @@ def mock_memory_redis_client():
 
     with patch("app.memory.redis_window.redis_client", mock_r):
         yield mock_r
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _mock_rate_limiter_storage():
+    """Replace slowapi's RedisStorage with MemoryStorage for the test session.
+
+    Production code sets storage_uri=REDIS_URL on the Limiter, which creates a
+    RedisStorage. Tests must not require a live Redis connection for rate limiting.
+    Swapping to MemoryStorage preserves all auth tests that call limiter.reset()
+    between runs.
+
+    test_rate_limit.py checks limiter._storage_uri (the configured URI), not the
+    runtime storage object, so this swap does not affect that assertion.
+    """
+    from limits.storage import MemoryStorage
+
+    from app.core.rate_limit import limiter
+
+    mem = MemoryStorage()
+    orig_storage = limiter._storage
+    orig_limiter_storage = limiter._limiter.storage
+
+    limiter._storage = mem
+    limiter._limiter.storage = mem
+
+    yield
+
+    limiter._storage = orig_storage
+    limiter._limiter.storage = orig_limiter_storage
