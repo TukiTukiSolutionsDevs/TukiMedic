@@ -98,7 +98,7 @@ class TestDispatcher:
         with patch("app.agents.specialists.dispatcher.get_specialist", return_value=mock_agent) as mock_get:
             result = await dispatch_specialists(state, api_key="test-key")
 
-        mock_get.assert_called_once_with("medicina_interna", "test-key", base_url=None)
+        mock_get.assert_called_once_with("medicina_interna", "test-key", base_url=None, chat_model=None)
         assert "specialist_outputs" in result
         assert "medicina_interna" in result["specialist_outputs"]
 
@@ -119,7 +119,7 @@ class TestDispatcher:
         mock_agent_a = AsyncMock(return_value=result_a)
         mock_agent_b = AsyncMock(return_value=result_b)
 
-        def get_spec(name, key, base_url=None):
+        def get_spec(name, key, base_url=None, chat_model=None):
             if name == "medicina_interna":
                 return mock_agent_a
             if name == "pediatria":
@@ -177,7 +177,7 @@ class TestDispatcher:
         mock_agent_a = AsyncMock(return_value=result_a)
         mock_agent_b = AsyncMock(return_value=result_b)
 
-        def get_spec(name, key, base_url=None):
+        def get_spec(name, key, base_url=None, chat_model=None):
             if name == "medicina_interna":
                 return mock_agent_a
             if name == "ginecologia":

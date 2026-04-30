@@ -6,7 +6,6 @@ agent module that imports it. Fast and hermetic.
 """
 
 import asyncio
-from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -36,28 +35,13 @@ def _make_cred(
 # Helpers
 # ---------------------------------------------------------------------------
 
-_CHATLLM_TARGETS = [
-    "app.agents.triage.agent.ChatOpenAI",
-    "app.agents.anamnesis.agent.ChatOpenAI",
-    "app.agents.classifier.agent.ChatOpenAI",
-    "app.agents.specialists.base.ChatOpenAI",
-    "app.agents.medical_board.agent.ChatOpenAI",
-    "app.agents.devils_advocate.agent.ChatOpenAI",
-    "app.agents.guardrail.agent.ChatOpenAI",
-    "app.agents.synthesizer.agent.ChatOpenAI",
-]
-
-
 @pytest.fixture()
 def mock_llm():
-    """Patch ChatOpenAI across all agent modules — zero real API calls."""
-    mock_inst = MagicMock()
-    mock_inst.with_structured_output.return_value = mock_inst
-    with ExitStack() as stack:
-        for target in _CHATLLM_TARGETS:
-            m = stack.enter_context(patch(target))
-            m.return_value = mock_inst
-        yield mock_inst
+    """Patch get_chat_model in graph — zero real API calls, no model name hardcoding."""
+    mock_model = MagicMock()
+    mock_model.with_structured_output.return_value = mock_model
+    with patch("app.orchestrator.graph.get_chat_model", return_value=mock_model):
+        yield mock_model
 
 
 def _make_state(**overrides) -> ClinicalCaseState:
