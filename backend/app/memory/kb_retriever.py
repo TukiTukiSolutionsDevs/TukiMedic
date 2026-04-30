@@ -1,5 +1,5 @@
 """
-Knowledge Base Retriever — semantic RAG over the knowledge_base table.
+Knowledge Base Retriever — semantic RAG over the knowledge_base_chunks table.
 
 Uses cosine similarity on pgvector embeddings to find relevant medical
 content chunks, then concatenates them up to a token budget.

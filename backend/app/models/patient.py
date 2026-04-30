@@ -65,7 +65,7 @@ class PatientProfile(Base):
 class KnowledgeBaseChunk(Base):
     """RAG knowledge base: chunked medical articles with embeddings."""
 
-    __tablename__ = "knowledge_base"
+    __tablename__ = "knowledge_base_chunks"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

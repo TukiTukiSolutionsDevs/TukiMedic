@@ -27,9 +27,7 @@ _EXPECTED_TABLES = frozenset(
         "lab_values",
         "patient_timeline",
         "patient_profiles",
-        # Migration creates "knowledge_base"; model declares "knowledge_base_chunks".
-        # This mismatch is a pre-existing bug — follow-up: align model or migration.
-        "knowledge_base",
+        "knowledge_base_chunks",
         "audit_logs",
         "provider_credentials",
     }
