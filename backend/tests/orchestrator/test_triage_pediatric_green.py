@@ -104,3 +104,70 @@ class TestPromptInvariantsPreserved:
         # Sanity check on a couple of canonical entries.
         assert "torácico" in TRIAGE_SYSTEM_PROMPT or "toracico" in TRIAGE_SYSTEM_PROMPT
         assert "ideación suicida" in TRIAGE_SYSTEM_PROMPT.lower() or "ideacion suicida" in TRIAGE_SYSTEM_PROMPT.lower()
+
+
+class TestPromptHandlesChronicityCorrectly:
+    """Chronicity by itself MUST NOT escalate to YELLOW.
+
+    Regression target: green-003 (sueño irregular crónico sin red flags),
+    which the previous few-shot version mis-classified to YELLOW because the
+    YELLOW pediátrico example used 'fiebre persistente' as anchor — the LLM
+    generalized 'persistente / crónico' as a yellow signal.
+
+    Fix: the prompt MUST contain (a) an explicit rule that chronicity alone
+    does NOT escalate, and (b) at least one GREEN example of benign
+    chronicity to balance the YELLOW anchor.
+    """
+
+    def test_chronicity_rule_present(self):
+        # The prompt must explicitly state that chronicity by itself is not a
+        # yellow trigger; signs of alarm or symptom combinations are.
+        prompt_lower = TRIAGE_SYSTEM_PROMPT.lower()
+        assert "cronicidad" in prompt_lower or "crónic" in prompt_lower, (
+            "Prompt MUST mention cronicidad/cronicas to anchor the rule"
+        )
+        # Look for a directive phrase like "NO escala automáticamente" /
+        # "no escala" / "no es un red flag" near the chronicity term.
+        assert any(
+            phrase in prompt_lower
+            for phrase in (
+                "no escala automáticamente",
+                "no escala automaticamente",
+                "no es un red flag",
+                "no escala la categoría",
+                "no escala la categoria",
+            )
+        ), "Prompt MUST state explicitly that chronicity alone does NOT escalate"
+
+    def test_has_green_chronicity_example(self):
+        # A GREEN example covering benign chronicity (sleep hygiene,
+        # chronic stable mild symptom) must exist.
+        prompt_lower = TRIAGE_SYSTEM_PROMPT.lower()
+        # Must mention at least one chronic-benign trigger keyword.
+        chronicity_green_signals = (
+            "sueño irregular",
+            "higiene del sueño",
+            "patrón crónico estable",
+            "patron cronico estable",
+            "cronicidad benigna",
+            "hábitos del sueño",
+            "habitos del sueno",
+        )
+        assert any(s in prompt_lower for s in chronicity_green_signals), (
+            "Prompt MUST include a GREEN example covering benign chronicity"
+        )
+
+    def test_yellow_pediatric_example_uses_combination_not_just_persistence(self):
+        # The YELLOW pediatric example must clarify it is the COMBINATION of
+        # signs that triggers yellow (fever + decay + feeding refusal),
+        # not chronicity / persistence alone.
+        prompt_lower = TRIAGE_SYSTEM_PROMPT.lower()
+        # Combination keywords near the YELLOW example.
+        assert "rechazo" in prompt_lower or "no quiere comer" in prompt_lower, (
+            "YELLOW pediatric example MUST include feeding-refusal as a co-symptom "
+            "to make the combination explicit"
+        )
+        assert "combinación" in prompt_lower or "combinacion" in prompt_lower, (
+            "Prompt MUST emphasize 'combinación' to anchor the rule that YELLOW "
+            "requires multiple co-occurring signs, not single-axis persistence"
+        )
