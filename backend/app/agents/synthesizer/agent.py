@@ -13,6 +13,8 @@ from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.synthesizer.schemas import SynthesizedResponse
 from app.agents.synthesizer.prompts import SYNTHESIZER_SYSTEM_PROMPT
+from app.core.prompt_guard import wrap_user_input
+from app.core.sanitize import sanitize_patient_markdown
 
 
 # Fail-safe message: tell the user we couldn't process the case and to seek
@@ -43,9 +45,14 @@ DISCLAIMER_SEPARATOR = "\n\n---\n\n"
 def _compose_patient_text(patient_response: str, disclaimer: str | None) -> str:
     """Append disclaimer to the patient response with a visible separator.
 
+    The patient_response is sanitized via `sanitize_patient_markdown` before
+    being concatenated — this removes HTML tags, dangerous URL schemes,
+    Markdown image references, and zero-width Unicode characters. The
+    disclaimer is left intact (we control its content).
+
     Falls back to BASE_DISCLAIMER if the LLM returned an empty or missing one.
     """
-    body = (patient_response or "").strip()
+    body = sanitize_patient_markdown(patient_response).strip()
     extra = (disclaimer or "").strip()
     if not extra:
         extra = BASE_DISCLAIMER
@@ -129,10 +136,13 @@ class SynthesizerAgent:
             f"Red flags: {', '.join(red_flags) if red_flags else 'ninguno'}"
         )
 
-        # Original message
+        # Original message — wrapped in explicit delimiters so the LLM
+        # treats it as DATA, not as instructions. This is the key
+        # containment for prompt injection that slips past the triage
+        # pre-filter (e.g. obfuscated patterns, novel jailbreaks).
         if state.get("current_message"):
             context_parts.append(
-                f"## Consulta del paciente\n{state['current_message']}"
+                f"## Consulta del paciente\n{wrap_user_input(state['current_message'])}"
             )
 
         # Extracted facts from anamnesis

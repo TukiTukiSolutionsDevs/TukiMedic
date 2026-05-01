@@ -7,11 +7,33 @@ Usa GPT-4o-mini por velocidad y costo. Temperature 0.0 para consistencia.
 
 from langchain_openai import ChatOpenAI
 
+import logging
+
 from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.triage.schemas import TriageResult
 from app.agents.triage.prompts import TRIAGE_SYSTEM_PROMPT
 from app.agents.triage.tools import red_flag_checker
+from app.core.prompt_guard import detect_injection, wrap_user_input
+
+log = logging.getLogger(__name__)
+
+
+# Defensive yellow result returned when the input matches a known prompt
+# injection pattern. We do NOT pass the message to the LLM (input is
+# untrusted) and we do NOT return green (the user's clinical state is
+# unknown — yellow + low confidence steers them to seek attention).
+_INJECTION_RESULT = TriageResult(
+    level="yellow",
+    confidence=0.2,
+    red_flags_detected=[],
+    reasoning=(
+        "El mensaje contiene patrones que no podemos procesar de forma segura. "
+        "Por favor reformulá tu consulta clínica describiendo los síntomas, "
+        "su intensidad y desde cuándo los tenés."
+    ),
+    recommended_urgency="24-48h",
+)
 
 
 # Fail-safe default: yellow + low confidence so the user is steered to seek
@@ -76,6 +98,25 @@ class TriageAgent:
     async def __call__(self, state: ClinicalCaseState) -> dict:
         """Execute triage and return partial state update."""
         message = state["current_message"]
+
+        # Step 0: Prompt injection pre-filter. We refuse to send injected
+        # content to the LLM. Returning a defensive yellow result preserves
+        # patient safety (we do not silently green-list a manipulated input).
+        injection_verdict = detect_injection(message)
+        if injection_verdict.matched:
+            log.warning(
+                "triage: prompt injection detected; refusing LLM call",
+                extra={
+                    "patterns": list(injection_verdict.patterns),
+                    "case_id": state.get("case_id"),
+                },
+            )
+            return {
+                "triage_level": _INJECTION_RESULT.level,
+                "triage_confidence": _INJECTION_RESULT.confidence,
+                "red_flags": [],
+                "current_node": "triage",
+            }
 
         # Step 1: Pre-LLM red flag check (no tokens spent)
         red_flag_matches = red_flag_checker(message)
