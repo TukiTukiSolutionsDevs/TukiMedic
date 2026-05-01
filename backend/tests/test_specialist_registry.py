@@ -75,7 +75,9 @@ class TestSpecialistRegistry:
 
         result = register(_TestAgent)
         assert result is _TestAgent
-        assert "_test_decorator_agent" in REGISTRY
+        # Note: _normalize_specialty strips leading/trailing underscores,
+        # so "_test_decorator_agent" → "test_decorator_agent" in the registry.
+        assert "test_decorator_agent" in REGISTRY
 
         # cleanup
-        del REGISTRY["_test_decorator_agent"]
+        del REGISTRY["test_decorator_agent"]
