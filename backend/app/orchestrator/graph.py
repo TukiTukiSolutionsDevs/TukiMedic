@@ -11,6 +11,7 @@ NOTE: ClinicalCaseState lives in orchestrator.state to avoid circular imports.
 Agents import from there; this module imports agents → no cycle.
 """
 
+import asyncio
 import logging
 import uuid
 from typing import Any, Awaitable, Callable
@@ -120,17 +121,25 @@ def _audit_node(
 
             details = build_details(state, result)
 
-            # Fresh session per audit event — isolated from any surrounding transaction.
-            async with async_session() as db:
-                await log_clinical_decision(
-                    db,
-                    case_id=case_id,
-                    action=action,
-                    details=details,
-                    model_version=model_version,
-                    user_id=user_id,
-                )
-                await db.commit()
+            # Schedule the DB write as a top-level asyncio Task so it runs in a
+            # clean greenlet context — NOT nested inside LangGraph's greenlet.
+            # SQLAlchemy's greenlet_spawn conflicts with LangGraph's scheduler
+            # when called from within an already-active SQLAlchemy greenlet chain.
+            # create_task() breaks that chain: the task starts from the event loop's
+            # root greenlet, avoiding "another operation is in progress" errors.
+            async def _write_audit() -> None:
+                async with async_session() as db:
+                    await log_clinical_decision(
+                        db,
+                        case_id=case_id,
+                        action=action,
+                        details=details,
+                        model_version=model_version,
+                        user_id=user_id,
+                    )
+                    await db.commit()
+
+            await asyncio.ensure_future(_write_audit())
         except Exception:  # noqa: BLE001 — fail-open by design
             log.exception(
                 "clinical audit failed for action=%s; continuing with node result",
