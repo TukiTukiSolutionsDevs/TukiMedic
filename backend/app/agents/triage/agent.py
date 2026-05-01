@@ -25,6 +25,33 @@ _TRIAGE_FALLBACK = TriageResult(
 )
 
 
+def _clamp_triage(
+    *,
+    level: str,
+    red_flags_detected: list[str],
+    deterministic_matches: list,
+) -> str:
+    """Defensive clamp: demote RED to YELLOW when the LLM lacks evidence.
+
+    The pre-LLM red_flag_checker already escalates deterministically to RED
+    when YAML triggers match the message. If execution reaches the LLM and
+    it still returns RED *without* populating `red_flags_detected` AND with
+    no deterministic upstream match, that's an over-triage caused by LLM
+    bias toward conservatism — demote to YELLOW so the patient still gets
+    attention but the system doesn't trip the urgencia ER alarm.
+
+    Mirrors `_clamp_attention` in synthesizer/agent.py: LLM categorical
+    contracts are not trusted in isolation; we anchor to evidence.
+    """
+    if level != "red":
+        return level
+    has_llm_evidence = any((flag or "").strip() for flag in red_flags_detected)
+    has_deterministic_evidence = bool(deterministic_matches)
+    if has_llm_evidence or has_deterministic_evidence:
+        return "red"
+    return "yellow"
+
+
 class TriageAgent:
     """Agente de triage clínico — nodo de LangGraph."""
 
@@ -85,8 +112,17 @@ class TriageAgent:
             agent_name="triage",
         )
 
+        # Defensive clamp: reaching this branch implies red_flag_matches was
+        # empty (otherwise we'd have returned RED in step 1). If the LLM still
+        # claims RED without populating red_flags_detected, demote to YELLOW.
+        clamped_level = _clamp_triage(
+            level=result.level,
+            red_flags_detected=result.red_flags_detected,
+            deterministic_matches=[],
+        )
+
         return {
-            "triage_level": result.level,
+            "triage_level": clamped_level,
             "triage_confidence": result.confidence,
             "red_flags": result.red_flags_detected,
             "current_node": "triage",
