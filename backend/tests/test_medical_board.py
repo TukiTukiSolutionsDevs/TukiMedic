@@ -231,6 +231,9 @@ class TestMedicalBoardRouter:
         assert medical_board_router(state) == "synthesis"
 
     def test_disagreement_under_max_routes_to_devils_advocate(self):
+        # NOTE: gating tightened — devils_advocate now also requires
+        # false_consensus_risk >= 0.5 AND triage_level != "green".
+        # See test_medical_board_router.py for full gating coverage.
         state = make_state(
             consensus_level="disagreement",
             debate_rounds=1,
@@ -238,6 +241,8 @@ class TestMedicalBoardRouter:
                 consensus_level="disagreement", resolution_path="extra_round"
             ),
         )
+        state["false_consensus_risk"] = 0.7
+        state["triage_level"] = "yellow"
         assert medical_board_router(state) == "devils_advocate"
 
     def test_clarification_routes_to_clarification(self):
@@ -270,6 +275,8 @@ class TestMedicalBoardRouter:
                 consensus_level="disagreement", resolution_path="extra_round"
             ),
         )
+        state["false_consensus_risk"] = 0.7
+        state["triage_level"] = "yellow"
         assert medical_board_router(state) == "devils_advocate"
 
 
