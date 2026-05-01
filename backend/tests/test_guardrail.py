@@ -9,6 +9,7 @@ from app.agents.guardrail.schemas import (
     InterruptionLevel,
 )
 from app.agents.guardrail.agent import GuardrailAgent
+from app.agents.synthesizer.agent import BASE_DISCLAIMER, DISCLAIMER_SEPARATOR
 
 
 # ========== InterruptionLevel Enum Tests ==========
@@ -266,7 +267,7 @@ class TestGuardrailAgent:
 
     @pytest.mark.asyncio
     async def test_modify_severity_replaces_response(self):
-        """interruption_level=modify MUST overwrite the patient-facing response."""
+        """interruption_level=modify MUST overwrite the patient-facing response and preserve disclaimer."""
         violation = SafetyViolation(
             violation_type="prescription_with_dose",
             description="Prescripción con dosis sin receta",
@@ -284,8 +285,51 @@ class TestGuardrailAgent:
             synthesized_response="tomá ibuprofeno 400mg cada 8hs"
         )
         result = await agent(state)
-        assert result["synthesized_response"] == suggested
+        assert result["synthesized_response"].startswith(suggested)
+        assert BASE_DISCLAIMER in result["synthesized_response"]
         assert "ibuprofeno" not in result["synthesized_response"].lower()
+
+    @pytest.mark.asyncio
+    async def test_modify_response_appends_base_disclaimer(self):
+        """CRITICAL safety: MODIFY path MUST append BASE_DISCLAIMER to the guardrail suggestion."""
+        violation = SafetyViolation(
+            violation_type="definitive_diagnosis",
+            description="Diagnóstico definitivo detectado",
+            severity="high",
+        )
+        suggested = "Los síntomas son compatibles con migraña."
+        mock_check = GuardrailCheck(
+            approved=False,
+            violations=[violation],
+            interruption_level=InterruptionLevel.MODIFY,
+            modifications_suggested=[suggested],
+        )
+        agent = make_agent_with_mock(mock_check)
+        state = make_state(synthesized_response="Tenés migraña.")
+        result = await agent(state)
+        assert BASE_DISCLAIMER in result["synthesized_response"]
+
+    @pytest.mark.asyncio
+    async def test_modify_response_disclaimer_appears_after_suggestion(self):
+        """Disclaimer must appear AFTER the guardrail suggestion text, separated by DISCLAIMER_SEPARATOR."""
+        violation = SafetyViolation(
+            violation_type="definitive_diagnosis",
+            description="Diagnóstico definitivo",
+            severity="high",
+        )
+        suggested = "Los síntomas requieren evaluación médica."
+        mock_check = GuardrailCheck(
+            approved=False,
+            violations=[violation],
+            interruption_level=InterruptionLevel.MODIFY,
+            modifications_suggested=[suggested],
+        )
+        agent = make_agent_with_mock(mock_check)
+        state = make_state(synthesized_response="Tenés artritis.")
+        result = await agent(state)
+        text = result["synthesized_response"]
+        assert DISCLAIMER_SEPARATOR in text
+        assert text.index(suggested) < text.index(BASE_DISCLAIMER)
 
     @pytest.mark.asyncio
     async def test_modify_severity_falls_back_to_original_when_no_suggestion(self):

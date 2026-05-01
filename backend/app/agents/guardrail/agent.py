@@ -11,6 +11,7 @@ from app.agents._llm_safe import safe_ainvoke
 from app.orchestrator.state import ClinicalCaseState
 from app.agents.guardrail.schemas import GuardrailCheck, InterruptionLevel
 from app.agents.guardrail.prompts import GUARDRAIL_SYSTEM_PROMPT
+from app.agents.synthesizer.agent import BASE_DISCLAIMER, DISCLAIMER_SEPARATOR
 
 
 # Fail-safe: when the safety LLM is down we cannot prove the content is safe,
@@ -74,7 +75,7 @@ class GuardrailAgent:
                         s.strip() for s in check.modifications_suggested if s and s.strip()
                     )
                     if suggested:
-                        final_response = suggested
+                        final_response = suggested + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER
 
         # 2. Check specialist outputs for unsafe content
         for specialty, output in (state.get("specialist_outputs") or {}).items():
