@@ -26,6 +26,11 @@ class AuditLog(Base):
     )
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    # Tamper-evident hash chain — set by app.services.audit at write time.
+    # Genesis row uses "0"*64 as previous_hash; chain_hash is always
+    # sha256(previous_hash || details['inputs_hash']).
+    previous_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    chain_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -33,4 +38,5 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_logs_user_created", "user_id", "created_at"),
         Index("ix_audit_logs_action_created", "action", "created_at"),
+        Index("ix_audit_logs_chain_hash", "chain_hash"),
     )
