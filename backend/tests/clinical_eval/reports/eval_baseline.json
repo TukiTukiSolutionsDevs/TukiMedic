@@ -1,14 +1,14 @@
 {
   "aggregate": {
-    "timestamp": "20260501T052436Z",
+    "timestamp": "20260501T073146Z",
     "total_cases": 25,
     "triage_accuracy": 0.88,
-    "escalation_accuracy": 0.88,
+    "escalation_accuracy": 0.96,
     "forbidden_diagnosis_avoidance_rate": 1.0,
     "disclaimer_presence_rate": 1.0,
     "red_flag_recall_macro_avg": 1.0,
-    "latency_p50_seconds": 70.77,
-    "latency_p95_seconds": 139.35,
+    "latency_p50_seconds": 79.92,
+    "latency_p95_seconds": 146.8,
     "per_category": {
       "allergic": {
         "total": 2,
@@ -18,7 +18,7 @@
       "cardio": {
         "total": 2,
         "triage_pass": 2,
-        "escalation_pass": 1
+        "escalation_pass": 2
       },
       "neuro": {
         "total": 2,
@@ -63,7 +63,7 @@
       "gyneco": {
         "total": 1,
         "triage_pass": 1,
-        "escalation_pass": 0
+        "escalation_pass": 1
       },
       "musculoskeletal": {
         "total": 3,
@@ -113,7 +113,7 @@
       "attention_level_actual": "urgencia",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 0.02,
+      "latency_seconds": 0.01,
       "active_specialties": [],
       "specialist_outputs_keys": [],
       "red_flags_detected": [
@@ -131,11 +131,11 @@
       "triage_match": true,
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
-      "escalation_match": false,
-      "attention_level_actual": "urgencia",
+      "escalation_match": true,
+      "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 134.82,
+      "latency_seconds": 146.8,
       "active_specialties": [
         "Cardiología",
         "Medicina Interna"
@@ -160,11 +160,10 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 80.27,
+      "latency_seconds": 79.07,
       "active_specialties": [
         "Neurología",
-        "Medicina Interna",
-        "Medicina General"
+        "Medicina Interna"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -185,10 +184,10 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 68.36,
+      "latency_seconds": 84.99,
       "active_specialties": [
         "Dermatología",
-        "Alergología",
+        "Alergología/Inmunología",
         "Medicina General/Familiar"
       ],
       "specialist_outputs_keys": [
@@ -210,11 +209,10 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 88.1,
+      "latency_seconds": 84.37,
       "active_specialties": [
-        "Otorrinolaringología",
-        "Medicina Interna",
-        "Medicina General/Familiar"
+        "Medicina General/Familiar",
+        "Otorrinolaringología"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -235,16 +233,15 @@
       "attention_level_actual": "urgencia",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 202.47,
+      "latency_seconds": 120.2,
       "active_specialties": [
-        "Cirugía",
-        "Gastroenterología",
+        "Cirugía General",
+        "Medicina de Urgencias/Emergencias",
         "Medicina Interna",
-        "Ginecología"
+        "Gastroenterología"
       ],
       "specialist_outputs_keys": [
-        "medicina_general",
-        "ginecologia"
+        "medicina_general"
       ],
       "red_flags_detected": [],
       "current_node": "guardrail"
@@ -262,7 +259,7 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 72.94,
+      "latency_seconds": 255.46,
       "active_specialties": [
         "Coloproctología",
         "Gastroenterología",
@@ -287,7 +284,7 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 139.35,
+      "latency_seconds": 57.53,
       "active_specialties": [
         "medicina_interna"
       ],
@@ -295,7 +292,7 @@
         "medicina_interna"
       ],
       "red_flags_detected": [],
-      "current_node": "escalation"
+      "current_node": "guardrail"
     },
     {
       "id": "green-002",
@@ -310,10 +307,11 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 79.03,
+      "latency_seconds": 81.35,
       "active_specialties": [
         "Pediatría",
-        "Medicina General/Familiar"
+        "Medicina General/Familiar",
+        "Farmacología Clínica"
       ],
       "specialist_outputs_keys": [
         "pediatria"
@@ -334,7 +332,7 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 66.33,
+      "latency_seconds": 84.44,
       "active_specialties": [
         "Medicina del Sueño",
         "Psiquiatría",
@@ -359,11 +357,11 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 63.14,
+      "latency_seconds": 55.76,
       "active_specialties": [
-        "Nutrición Deportiva",
+        "Nutrición",
         "Medicina del Deporte",
-        "Medicina General"
+        "Medicina Interna"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -384,10 +382,10 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 151.98,
+      "latency_seconds": 59.13,
       "active_specialties": [
-        "Medicina General",
-        "Dermatología"
+        "Dermatología",
+        "Medicina General"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -404,11 +402,11 @@
       "triage_match": true,
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
-      "escalation_match": false,
-      "attention_level_actual": "urgencia",
+      "escalation_match": true,
+      "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 65.09,
+      "latency_seconds": 80.03,
       "active_specialties": [
         "Ginecología",
         "Medicina General/Familiar"
@@ -432,12 +430,12 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 70.77,
+      "latency_seconds": 87.5,
       "active_specialties": [
         "Medicina General",
         "Medicina Interna",
-        "Reumatología",
-        "Neurología"
+        "Neurología",
+        "Reumatología"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -458,10 +456,10 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 84.27,
+      "latency_seconds": 91.13,
       "active_specialties": [
-        "Infectología",
         "Medicina Interna",
+        "Infectología",
         "Otorrinolaringología",
         "Hematología"
       ],
@@ -484,7 +482,7 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 77.1,
+      "latency_seconds": 79.92,
       "active_specialties": [
         "Endocrinología",
         "Medicina Interna"
@@ -508,11 +506,12 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 86.43,
+      "latency_seconds": 98.62,
       "active_specialties": [
-        "Traumatología y Ortopedia",
         "Medicina General/Familiar",
-        "Medicina Física y Rehabilitación"
+        "Traumatología y Ortopedia",
+        "Medicina Física y Rehabilitación",
+        "Fisioterapia"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -530,15 +529,15 @@
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "24-48h",
+      "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 126.82,
+      "latency_seconds": 75.3,
       "active_specialties": [
         "Traumatología y Ortopedia",
-        "Fisiatría (Medicina Física y Rehabilitación)",
+        "Fisiatría / Medicina Física y Rehabilitación",
         "Neurología",
-        "Medicina General/Familiar"
+        "Neurocirugía"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -580,7 +579,7 @@
       "attention_level_actual": "urgencia",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 0.02,
+      "latency_seconds": 0.01,
       "active_specialties": [],
       "specialist_outputs_keys": [],
       "red_flags_detected": [
@@ -598,20 +597,19 @@
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "hoy",
+      "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 108.34,
+      "latency_seconds": 128.58,
       "active_specialties": [
-        "Psiquiatria",
-        "Medicina Interna",
+        "Psiquiatría",
         "Medicina General"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
       ],
       "red_flags_detected": [],
-      "current_node": "guardrail"
+      "current_node": "escalation"
     },
     {
       "id": "respiratory-001",
@@ -626,7 +624,7 @@
       "attention_level_actual": "urgencia",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 0.01,
+      "latency_seconds": 0.02,
       "active_specialties": [],
       "specialist_outputs_keys": [],
       "red_flags_detected": [
@@ -648,12 +646,12 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 69.79,
+      "latency_seconds": 181.73,
       "active_specialties": [
         "Traumatología y Ortopedia",
-        "Medicina Deportiva",
         "Medicina de Urgencias/Emergencias",
-        "Radiología"
+        "Medicina Deportiva",
+        "Medicina General/Familiar"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -674,10 +672,10 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 61.03,
+      "latency_seconds": 72.91,
       "active_specialties": [
-        "Urología",
-        "Nefrología"
+        "Medicina General/Atención Primaria",
+        "Urología"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
