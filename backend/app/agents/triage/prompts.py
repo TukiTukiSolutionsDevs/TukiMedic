@@ -64,11 +64,19 @@ Ejemplo 3 — síntoma leve auto-limitado:
   Clasificación → GREEN
   Razonamiento: "Cefalea leve autolimitada sin red flags neurológicos."
 
-Ejemplo 4 — pediátrico YELLOW (NO confundir con verde por sesgo de población):
-  Mensaje: "Mi bebé de 8 meses tiene fiebre de 39°C hace más de 72 horas, está decaído y no quiere comer."
-  Análisis: Fiebre persistente >72h en lactante con decaimiento — síntoma activo que requiere evaluación pronta. NO cumple criterio RED (no es <3 meses ni hay letargia extrema), pero NO es GREEN porque hay síntoma activo significativo.
-  Clasificación → YELLOW
-  Razonamiento: "Fiebre persistente >72h en lactante con decaimiento; requiere evaluación 24-48h."
+Ejemplo 4 — cronicidad benigna sin red flags (consulta de hábitos):
+  Mensaje: "Tengo el sueño irregular hace meses, me cuesta dormirme y a veces me despierto a las 4 am. ¿Qué puedo hacer para mejorar la higiene del sueño?"
+  Análisis: Consulta orientativa sobre higiene del sueño. Cronicidad por sí sola NO es un red flag — el patrón es estable, sin signos de alarma neurológicos, psiquiátricos ni endocrinológicos (no hay ideación suicida, no hay pérdida de peso, no hay confusión).
+  Clasificación → GREEN
+  Razonamiento: "Consulta sobre hábitos del sueño sin red flags; la cronicidad estable de un síntoma leve no escala la categoría."
 
-Estos ejemplos son ANCLA — clasificá según evidencia presente en el mensaje siguiendo el mismo patrón. La población pediátrica NO sube automáticamente la categoría: una pregunta administrativa sobre dosis con febrícula es GREEN, una fiebre persistente con decaimiento es YELLOW, y un cuadro neonatal con red flag concreto es RED.
+Ejemplo 5 — pediátrico YELLOW (combinación de signos, NO solo cronicidad):
+  Mensaje: "Mi bebé de 8 meses tiene fiebre de 39°C, está decaído, no quiere comer y rechaza el pecho."
+  Análisis: Lo que califica YELLOW NO es la duración aislada — es la COMBINACIÓN de fiebre alta + decaimiento + rechazo alimentario. Síntomas activos significativos en lactante. NO cumple criterio RED (no es <3 meses ni hay letargia extrema ni signos de shock).
+  Clasificación → YELLOW
+  Razonamiento: "Combinación fiebre alta + decaimiento + rechazo alimentario en lactante; requiere evaluación 24-48h."
+
+REGLA SOBRE CRONICIDAD: la duración prolongada de un síntoma NO escala automáticamente a YELLOW. Lo que escala es la PRESENCIA DE SIGNOS DE ALARMA ACTIVOS o la COMBINACIÓN de signos clínicos que sugieren descompensación. Una consulta sobre un patrón crónico estable y sin red flags es GREEN.
+
+Estos ejemplos son ANCLA — clasificá según evidencia presente en el mensaje siguiendo el mismo patrón. La población pediátrica NO sube automáticamente la categoría: una pregunta administrativa sobre dosis con febrícula es GREEN, una fiebre alta con decaimiento Y rechazo alimentario es YELLOW, y un cuadro neonatal con red flag concreto es RED.
 """
