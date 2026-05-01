@@ -170,10 +170,56 @@ class TriageAgent:
         }
 
 
+# ---------------------------------------------------------------------------
+# QW3 latency optimization — first-turn anamnesis skip
+# ---------------------------------------------------------------------------
+# When the patient's very first message is already long and clinically loaded,
+# anamnesis is unlikely to extract additional signal. Skipping it removes one
+# LLM round-trip (~3-6s) without sacrificing safety: red flags still escalate
+# upstream, and the classifier + specialists have enough context to route.
+_CLINICAL_KEYWORDS: tuple[str, ...] = (
+    "dolor", "fiebre", "tos", "vomito", "vómito", "mareo", "diarrea",
+    "dificultad", "rash", "sangr", "ardor", "ahog", "convul", "desmayo",
+    "alergi", "infec", "presion", "presión", "frecuencia", "palpit",
+    "respira", "abdomen", "cabeza", "cefalea", "nausea", "náusea",
+    "diabet", "hipertens", "ansie", "depres", "asma", "embarazad",
+    "menstrua", "vértigo", "vertigo", "fatiga", "cansancio",
+)
+_RICH_MESSAGE_MIN_CHARS: int = 200
+_RICH_MESSAGE_MIN_KEYWORDS: int = 2
+
+
+def _is_rich_message(message: str | None) -> bool:
+    """First-turn message is rich enough to skip anamnesis.
+
+    Heuristic: length >= ``_RICH_MESSAGE_MIN_CHARS`` AND at least
+    ``_RICH_MESSAGE_MIN_KEYWORDS`` distinct clinical keywords present.
+
+    Both conditions are necessary — long-but-vague messages and short-
+    but-clinical messages still benefit from anamnesis.
+    """
+    if not message or len(message) < _RICH_MESSAGE_MIN_CHARS:
+        return False
+    lower = message.lower()
+    hits = sum(1 for kw in _CLINICAL_KEYWORDS if kw in lower)
+    return hits >= _RICH_MESSAGE_MIN_KEYWORDS
+
+
 def triage_router(state: ClinicalCaseState) -> str:
-    """Route after triage — decides next node in the graph."""
+    """Route after triage — decides next node in the graph.
+
+    Routing rules (in priority order):
+    1. Red triage WITH at least one red flag → escalation (emergency).
+    2. First turn AND completeness < 0.5 AND message NOT rich → anamnesis
+       (collect more facts before classification).
+    3. Anything else → classification.
+    """
     if state["triage_level"] == "red" and state["red_flags"]:
         return "escalation"
-    if state["loop_count"] == 0 and state["completeness_score"] < 0.5:
+    if (
+        state["loop_count"] == 0
+        and state["completeness_score"] < 0.5
+        and not _is_rich_message(state.get("current_message"))
+    ):
         return "anamnesis"
     return "classification"
