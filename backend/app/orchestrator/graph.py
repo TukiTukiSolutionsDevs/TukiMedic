@@ -211,23 +211,66 @@ def create_initial_state(case_id: str, user_id: str, message: str) -> ClinicalCa
 # Internal nodes
 # ---------------------------------------------------------------------------
 
-async def _escalation_node(state: ClinicalCaseState) -> dict:
-    """Handle escalation — generate urgent response without full analysis.
+# Triage level → max attention_level when escalation is NOT a real emergency
+# (i.e. triggered by guardrail interrupt rather than red flags). Keeps the
+# patient-facing recommendation aligned with what triage actually classified.
+_TRIAGE_TO_ATTENTION_NON_EMERGENCY: dict[str | None, str] = {
+    "green": "rutina",
+    "yellow": "24-48h",
+}
 
-    IMPORTANT: always appends DISCLAIMER_SEPARATOR + BASE_DISCLAIMER so the
-    legal medical disclaimer is present on every escalation message.
+
+async def _escalation_node(state: ClinicalCaseState) -> dict:
+    """Handle escalation — two paths reach this node:
+
+    1. **Real medical emergency**: triage classified the case as ``red`` (or
+       red flags surfaced). We return the canonical "go to ER NOW" message and
+       force ``attention_level="urgencia"``.
+    2. **Guardrail interrupt on non-emergency triage**: the safety filter
+       blocked the synthesizer output, but the patient is NOT in medical
+       urgency. Returning the ER alarm here is a false positive — it triggers
+       over-escalation (8/9 fails in the 25-case eval baseline). Instead we
+       map ``attention_level`` from the triage classification and return a
+       neutral safety message that preserves any synthesized response that
+       was already deemed acceptable (or substitutes a generic
+       "consultá con un profesional" when no response is present).
+
+    Always appends ``BASE_DISCLAIMER`` exactly once so the legal medical
+    disclaimer is present on every escalation message regardless of path.
     """
-    red_flags_str = ", ".join(state.get("red_flags", []))
-    clinical_message = (
-        f"⚠️ ATENCIÓN: Se detectaron señales que requieren atención médica inmediata.\n\n"
-        f"Señales detectadas: {red_flags_str}\n\n"
-        f"Por favor, acude a urgencias o llama a servicios de emergencia lo antes posible.\n\n"
-        f"Este sistema no puede atender emergencias médicas. "
-        f"Si estás en peligro inmediato, llama al número de emergencias de tu país."
-    )
+    triage_level = state.get("triage_level")
+    red_flags = state.get("red_flags") or []
+    is_real_emergency = triage_level == "red" or bool(red_flags)
+
+    if is_real_emergency:
+        red_flags_str = ", ".join(red_flags) if red_flags else "señales clínicas urgentes"
+        clinical_message = (
+            f"⚠️ ATENCIÓN: Se detectaron señales que requieren atención médica inmediata.\n\n"
+            f"Señales detectadas: {red_flags_str}\n\n"
+            f"Por favor, acude a urgencias o llama a servicios de emergencia lo antes posible.\n\n"
+            f"Este sistema no puede atender emergencias médicas. "
+            f"Si estás en peligro inmediato, llama al número de emergencias de tu país."
+        )
+        return {
+            "synthesized_response": clinical_message + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER,
+            "attention_level": "urgencia",
+            "current_node": "escalation",
+        }
+
+    # Non-emergency escalation (guardrail-driven safety filter).
+    attention = _TRIAGE_TO_ATTENTION_NON_EMERGENCY.get(triage_level, "24-48h")
+    existing = (state.get("synthesized_response") or "").strip()
+    if not existing:
+        existing = (
+            "No podemos darte una respuesta clínica completa en este momento. "
+            "Te recomendamos consultar con un profesional de salud para revisar "
+            "tu caso con la información necesaria."
+        )
+    if BASE_DISCLAIMER.lower() not in existing.lower():
+        existing = existing.rstrip() + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER
     return {
-        "synthesized_response": clinical_message + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER,
-        "attention_level": "urgencia",
+        "synthesized_response": existing,
+        "attention_level": attention,
         "current_node": "escalation",
     }
 
