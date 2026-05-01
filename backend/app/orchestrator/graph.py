@@ -308,6 +308,42 @@ def _guardrail_router(state: ClinicalCaseState) -> str:
     return END
 
 
+# Confidence threshold above which a yellow case is allowed to bypass the
+# medical_board if its specialists also agree on the top differential.
+_YELLOW_CONSENSUS_CONFIDENCE = 0.8
+
+
+def _specialists_have_strong_consensus(specialist_outputs: dict | None) -> bool:
+    """True iff at least 2 specialists agree on the top differential
+    diagnosis with confidence >= _YELLOW_CONSENSUS_CONFIDENCE each.
+
+    Used to decide whether a yellow-triage case can bypass the
+    medical_board (smart-tier debate) and go straight to the synthesizer.
+
+    Defensive: any missing/malformed field returns False (keep the safer
+    deliberation path).
+    """
+    if not specialist_outputs or len(specialist_outputs) < 2:
+        return False
+    top_diffs: list[str] = []
+    for analysis in specialist_outputs.values():
+        if not isinstance(analysis, dict):
+            return False
+        conf = analysis.get("confidence")
+        if conf is None or conf < _YELLOW_CONSENSUS_CONFIDENCE:
+            return False
+        diffs = analysis.get("differential_diagnosis") or []
+        if not diffs or not isinstance(diffs[0], dict):
+            return False
+        condition = (diffs[0].get("condition") or "").strip().lower()
+        if not condition:
+            return False
+        top_diffs.append(condition)
+    if not top_diffs:
+        return False
+    return len(set(top_diffs)) == 1
+
+
 def _specialists_router(state: ClinicalCaseState) -> str:
     """Route after specialists dispatch.
 
@@ -315,10 +351,19 @@ def _specialists_router(state: ClinicalCaseState) -> str:
     LLM latency. The medical board's deliberative debate adds limited value
     for low-stakes consultations where the dominant differential is benign.
 
-    Yellow and any non-green triage level keep the full deliberation path.
+    Yellow-triage cases ALSO bypass the medical_board when the dispatched
+    specialists already converge on the same top differential with high
+    confidence (see `_specialists_have_strong_consensus`). When they
+    disagree or are uncertain, the full deliberation path runs.
+
     Red cases never reach this router because triage_router escalates first.
     """
-    if state.get("triage_level") == "green":
+    triage_level = state.get("triage_level")
+    if triage_level == "green":
+        return "synthesizer"
+    if triage_level == "yellow" and _specialists_have_strong_consensus(
+        state.get("specialist_outputs")
+    ):
         return "synthesizer"
     return "medical_board"
 
