@@ -30,19 +30,40 @@ _MEDICAL_BOARD_FALLBACK = MedicalBoardResult(
 )
 
 
+# Below this threshold, the medical_board's self-reported false-consensus
+# risk is treated as noise; we don't pay devils_advocate latency to chase it.
+_DEVILS_ADVOCATE_FALSE_CONSENSUS_THRESHOLD = 0.5
+
+
 def medical_board_router(state: ClinicalCaseState) -> str:
     """
     Conditional edge for the Medical Board node.
 
     Returns:
-        "synthesis"       — consensus reached (full/partial) or max rounds exceeded
+        "synthesis"       — consensus reached, max rounds exceeded, or
+                            devils_advocate gating conditions not met
         "clarification"   — missing clinical info needed to resolve debate
-        "devils_advocate" — disagreement and extra rounds still available
+        "devils_advocate" — disagreement worth challenging (see gating below)
+
+    Devils Advocate gating (added to address the gi-002=255s, trauma-001=181s
+    outliers): we only invoke the (expensive) adversarial node when ALL of:
+
+      - resolution_path == "extra_round"
+      - consensus_level == "disagreement"
+      - false_consensus_risk >= 0.5 (the board itself flags the consensus
+        as suspicious, not just any disagreement)
+      - triage_level != "green"  (green-bypass should have skipped the board
+        entirely; defensive belt-and-suspenders)
+      - round budget not exhausted
+
+    When any condition fails we close the loop with synthesis.
     """
     result = state.get("medical_board_result") or {}
     consensus_level = state.get("consensus_level") or result.get("consensus_level")
     resolution_path = result.get("resolution_path", "synthesis")
     debate_rounds = state.get("debate_rounds", 1)
+    triage_level = state.get("triage_level")
+    false_consensus_risk = state.get("false_consensus_risk", 0.0) or 0.0
 
     # Force close if we exceeded the extra-round budget
     if debate_rounds > MAX_EXTRA_ROUNDS + 1:  # +1 for the initial round
@@ -51,7 +72,12 @@ def medical_board_router(state: ClinicalCaseState) -> str:
     if resolution_path == "clarification":
         return "clarification"
 
-    if resolution_path == "extra_round" and consensus_level == "disagreement":
+    if (
+        resolution_path == "extra_round"
+        and consensus_level == "disagreement"
+        and false_consensus_risk >= _DEVILS_ADVOCATE_FALSE_CONSENSUS_THRESHOLD
+        and triage_level != "green"
+    ):
         return "devils_advocate"
 
     return "synthesis"
