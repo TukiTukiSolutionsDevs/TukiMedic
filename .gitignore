@@ -43,3 +43,7 @@ coverage.xml
 
 # Misc
 *.log
+
+# Clinical eval reports (artifacts, not source)
+backend/tests/clinical_eval/reports/*.json
+!backend/tests/clinical_eval/reports/eval_baseline.json
