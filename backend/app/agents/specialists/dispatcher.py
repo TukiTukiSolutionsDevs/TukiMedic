@@ -9,9 +9,12 @@ GeneralMedicineAgent as the default baseline.
 """
 
 import asyncio
+import logging
 
 from app.agents.specialists.registry import get_specialist
 from app.agents.specialists.general_medicine import GeneralMedicineAgent
+
+log = logging.getLogger(__name__)
 
 
 async def dispatch_specialists(
@@ -52,6 +55,11 @@ async def dispatch_specialists(
         agent = get_specialist(name, api_key, base_url=base_url, chat_model=chat_model)
         if agent is not None:
             agents.append(agent)
+        else:
+            log.warning(
+                "dispatch: specialty %r has no registered implementation; skipping",
+                name,
+            )
 
     # --- Fallback: no matching agents in registry ---
     if not agents:

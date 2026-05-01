@@ -7,8 +7,12 @@ Tests TDD (RED first):
 3. test_dispatch_parallel_multiple
 4. test_dispatch_unknown_specialty_fallback
 5. test_dispatch_merges_outputs
+6. test_accented_name_resolves_to_registered_specialist (Bug B)
+7. test_uppercase_name_resolves_to_registered_specialist (Bug B)
+8. test_unregistered_specialty_logs_warning (Bug B)
 """
 
+import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -190,3 +194,101 @@ class TestDispatcher:
         outputs = result["specialist_outputs"]
         assert outputs["medicina_interna"]["clinical_impression"] == "Internal A"
         assert outputs["ginecologia"]["clinical_impression"] == "Gynecology B"
+
+
+# ---------------------------------------------------------------------------
+# Bug B — Specialty name normalization (accent + case insensitivity)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestDispatcherNormalization:
+    async def test_accented_name_resolves_to_registered_specialist(self):
+        """'Ginecología' (accent) must match 'ginecologia' registry key and produce output."""
+        import app.agents.specialists  # trigger @register decorators
+        from app.agents.specialists.dispatcher import dispatch_specialists
+        from app.agents.specialists.schemas import SpecialistAnalysis
+
+        state = make_state(
+            active_specialties=[{"name": "Ginecología", "weight": 0.8, "reason": "test"}]
+        )
+        fake_result = SpecialistAnalysis(
+            specialty_name="ginecologia",
+            clinical_impression="Análisis ginecológico.",
+            differential_diagnosis=[],
+            suggested_studies=[],
+            risk_factors=[],
+            recommendations=[],
+            alarm_signs=[],
+            confidence=0.8,
+            needs_referral=False,
+            referral_to=[],
+        )
+        with patch("app.agents.specialists.base.ChatOpenAI"), \
+             patch(
+                 "app.agents.specialists.base.safe_ainvoke",
+                 new_callable=AsyncMock,
+                 return_value=fake_result,
+             ):
+            result = await dispatch_specialists(state, api_key="test-key")
+
+        assert "ginecologia" in result["specialist_outputs"], (
+            "Expected 'ginecologia' key in specialist_outputs but got: "
+            + str(list(result["specialist_outputs"].keys()))
+        )
+
+    async def test_uppercase_name_resolves_to_registered_specialist(self):
+        """'GINECOLOGIA' (all caps) must also match 'ginecologia' registry key."""
+        import app.agents.specialists
+        from app.agents.specialists.dispatcher import dispatch_specialists
+        from app.agents.specialists.schemas import SpecialistAnalysis
+
+        state = make_state(
+            active_specialties=[{"name": "GINECOLOGIA", "weight": 0.8, "reason": "test"}]
+        )
+        fake_result = SpecialistAnalysis(
+            specialty_name="ginecologia",
+            clinical_impression="Análisis ginecológico.",
+            differential_diagnosis=[],
+            suggested_studies=[],
+            risk_factors=[],
+            recommendations=[],
+            alarm_signs=[],
+            confidence=0.8,
+            needs_referral=False,
+            referral_to=[],
+        )
+        with patch("app.agents.specialists.base.ChatOpenAI"), \
+             patch(
+                 "app.agents.specialists.base.safe_ainvoke",
+                 new_callable=AsyncMock,
+                 return_value=fake_result,
+             ):
+            result = await dispatch_specialists(state, api_key="test-key")
+
+        assert "ginecologia" in result["specialist_outputs"], (
+            "Expected 'ginecologia' key in specialist_outputs but got: "
+            + str(list(result["specialist_outputs"].keys()))
+        )
+
+    async def test_unregistered_specialty_logs_warning(self, caplog):
+        """Dispatcher logs WARNING when a specialty name has no registered implementation."""
+        from app.agents.specialists.dispatcher import dispatch_specialists
+
+        state = make_state(
+            active_specialties=[
+                {"name": "Otorrinolaringología", "weight": 0.9, "reason": "test"}
+            ]
+        )
+        with caplog.at_level(logging.WARNING, logger="app.agents.specialists.dispatcher"), \
+             patch(
+                 "app.agents.specialists.dispatcher.GeneralMedicineAgent"
+             ) as MockGM:
+            MockGM.return_value = AsyncMock(
+                return_value=make_specialist_result("medicina_general")
+            )
+            await dispatch_specialists(state, api_key="test-key")
+
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any(
+            "otorrinolaringolog" in msg.lower() for msg in warning_messages
+        ), f"Expected warning mentioning specialty name. Got: {warning_messages}"
