@@ -21,15 +21,39 @@ REGISTRY: dict[str, type] = {}
 def _normalize_specialty(name: str) -> str:
     """Normalize a specialty name for registry lookup.
 
-    Applies: strip → lowercase → NFD decomposition → remove diacritics.
+    The classifier LLM produces names with capitals, accents, and spaces
+    ("Medicina Interna", "Cardiología Pediátrica", "Medicina General/Familiar"),
+    but registry keys are snake_case ASCII ("medicina_interna"). Without
+    space/slash/hyphen normalization every multi-word specialty silently
+    fell back to GeneralMedicineAgent — neutralizing the entire specialist
+    routing layer.
+
+    Applies in order:
+      1. strip + lowercase
+      2. replace " ", "/", "-" with "_"
+      3. NFD decompose + drop combining marks (accents)
+      4. collapse repeated "_"
+      5. strip leading/trailing "_"
+
     Examples:
-        "Ginecología" → "ginecologia"
-        "MEDICINA_GENERAL" → "medicina_general"
-        "  Pediatría  " → "pediatria"
+        "Ginecología"                    → "ginecologia"
+        "Medicina Interna"               → "medicina_interna"
+        "Cardiología Pediátrica"         → "cardiologia_pediatrica"
+        "Medicina General/Familiar"      → "medicina_general_familiar"
+        "  Pediatría  "                  → "pediatria"
     """
-    lowered = name.strip().lower()
+    lowered = (
+        name.strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("-", "_")
+    )
     nfd = unicodedata.normalize("NFD", lowered)
-    return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    cleaned = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return cleaned.strip("_")
 
 
 def register(cls: type) -> type:
