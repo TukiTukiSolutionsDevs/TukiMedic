@@ -192,8 +192,11 @@ class TestSynthesizerAgent:
 
     @pytest.mark.asyncio
     async def test_attention_level_propagated(self):
+        # NOTE: with triage=red the synthesizer clamp leaves urgencia
+        # untouched. The default make_state() uses triage="yellow", which
+        # would clamp urgencia → hoy (covered by test_synthesizer_clamp.py).
         agent = make_agent_with_mock(make_mock_response(attention_level="urgencia"))
-        result = await agent(make_state())
+        result = await agent(make_state(triage_level="red"))
         assert result["attention_level"] == "urgencia"
 
     @pytest.mark.asyncio
