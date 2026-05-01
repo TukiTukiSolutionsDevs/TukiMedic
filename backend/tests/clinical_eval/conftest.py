@@ -116,6 +116,58 @@ def gemini_cred():
 
 
 # ---------------------------------------------------------------------------
+# Eval user — seeded once so audit-log FK constraints are satisfied.
+# The clinical eval passes a real user_id to create_initial_state; the audit
+# node writes that UUID to clinical_decisions.user_id which FKs to users.id.
+# Using uuid.uuid4() without a matching row causes IntegrityError on INSERT.
+# ---------------------------------------------------------------------------
+
+_EVAL_USER_EMAIL = "eval@tuki.dev"
+_EVAL_USER_ID_STR = "00000000-0000-0000-0000-e0a100000001"
+
+
+@pytest.fixture(scope="session")
+def seed_eval_user(gemini_cred):  # noqa: ARG001 — depends on real DB being reachable
+    """Insert a stable eval user row (idempotent) and return its UUID.
+
+    Uses the same NullPool audit_session that the graph nodes use so there
+    are no event-loop conflicts with the session-level asyncio.new_event_loop().
+    """
+    import asyncio
+    import uuid as _uuid
+
+    from app.core.database import audit_session
+    from app.models.user import User
+    from sqlalchemy import select
+
+    eval_id = _uuid.UUID(_EVAL_USER_ID_STR)
+
+    async def _seed() -> _uuid.UUID:
+        async with audit_session() as db:
+            result = await db.execute(
+                select(User).where(User.email == _EVAL_USER_EMAIL)
+            )
+            user = result.scalar_one_or_none()
+            if user is None:
+                user = User(
+                    id=eval_id,
+                    email=_EVAL_USER_EMAIL,
+                    # Dummy hash — this account is never used for auth.
+                    password_hash="$2b$12$evalDummyHashNotForAuthAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                    role="customer",
+                )
+                db.add(user)
+                await db.commit()
+            return user.id
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_seed())
+    finally:
+        loop.close()
+
+
+# ---------------------------------------------------------------------------
 # Compiled graph — built once per session with the real credential.
 # ---------------------------------------------------------------------------
 

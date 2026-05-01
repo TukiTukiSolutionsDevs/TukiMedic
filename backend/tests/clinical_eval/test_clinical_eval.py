@@ -107,6 +107,7 @@ async def test_clinical_case(
     case: dict,
     clinical_graph,
     eval_results: list[dict],
+    seed_eval_user,
 ) -> None:
     """Run a single patient scenario through the full graph and assert metrics."""
     from app.orchestrator.graph import create_initial_state
@@ -117,7 +118,7 @@ async def test_clinical_case(
     # --- Build initial state ---
     state = create_initial_state(
         case_id=str(uuid.uuid4()),
-        user_id=str(uuid.uuid4()),
+        user_id=str(seed_eval_user),
         message=case["input_message"],
     )
     state["patient_profile"] = {
