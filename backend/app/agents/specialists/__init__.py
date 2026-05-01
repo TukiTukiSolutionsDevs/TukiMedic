@@ -12,6 +12,7 @@ from app.agents.specialists.gynecology import GynecologyAgent
 from app.agents.specialists.cardiology import CardiologyAgent
 from app.agents.specialists.traumatology import TraumatologyAgent
 from app.agents.specialists.neurology import NeurologyAgent
+from app.agents.specialists.dermatology import DermatologyAgent
 from app.agents.specialists.pharmacology import PharmacologyAgent, PharmacologyAnalysis, DrugInteraction
 
 from app.agents.specialists.dispatcher import dispatch_specialists
@@ -36,6 +37,7 @@ __all__ = [
     "CardiologyAgent",
     "TraumatologyAgent",
     "NeurologyAgent",
+    "DermatologyAgent",
     "PharmacologyAgent",
     # Dispatcher
     "dispatch_specialists",

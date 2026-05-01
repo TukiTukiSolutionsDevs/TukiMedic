@@ -44,6 +44,10 @@ ALIASES: dict[str, str] = {
     # Obstetrics shares the gynecology agent.
     "obstetricia": "ginecologia",
     "ginecologia_y_obstetricia": "ginecologia",
+    # Dermatology — short alias used by classifier / users.
+    # The accented "Dermatología" already normalizes to "dermatologia"
+    # via _normalize_specialty, so only the short form needs an alias entry.
+    "derma": "dermatologia",
 }
 
 
