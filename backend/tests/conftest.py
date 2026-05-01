@@ -97,6 +97,27 @@ def mock_memory_redis_client():
         yield mock_r
 
 
+@pytest.fixture(autouse=True)
+def _stub_llm_safe_sleep():
+    """Make `safe_ainvoke` retry sleeps instant in unit tests.
+
+    `app.agents._llm_safe.safe_ainvoke` retries transient upstream errors
+    with an exponential backoff (1s/3s/9s plus jitter). In production this
+    cushions Gemini 503 hiccups; in unit tests it would add ~13s per error
+    case (we have ~10 such tests in `test_llm_error_handling.py` →
+    ~2 minutes of dead wait). Patching the indirected sleep keeps the suite
+    fast without altering the retry attempt count.
+
+    Tests that need to inspect the sleep schedule itself (see
+    `tests/test_llm_safe_retry.py::test_backoff_delays_follow_exponential_schedule`)
+    re-patch `_async_sleep` locally; the inner patch wins over this autouse.
+    """
+    from app.agents import _llm_safe
+
+    with patch.object(_llm_safe, "_async_sleep", new=AsyncMock(return_value=None)):
+        yield
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _mock_rate_limiter_storage():
     """Replace slowapi's RedisStorage with MemoryStorage for the test session.
