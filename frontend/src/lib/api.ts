@@ -18,11 +18,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 export class ApiError extends Error {
   status: number
   body: unknown
-  constructor(status: number, message: string, body: unknown) {
+  /** Extracted from body.detail.code when the detail is an object. */
+  code: string | undefined
+  constructor(status: number, message: string, body: unknown, code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.body = body
+    this.code = code
   }
 }
 
@@ -115,11 +118,24 @@ async function parseResponse<T>(res: Response): Promise<T> {
     : await res.text()
 
   if (!res.ok) {
-    const message =
-      typeof body === 'object' && body !== null && 'detail' in body
-        ? String((body as { detail: unknown }).detail)
-        : `Request failed: ${res.status}`
-    throw new ApiError(res.status, message, body)
+    let message: string
+    let code: string | undefined
+    if (typeof body === 'object' && body !== null && 'detail' in body) {
+      const detail = (body as { detail: unknown }).detail
+      if (typeof detail === 'object' && detail !== null) {
+        const d = detail as Record<string, unknown>
+        code = typeof d.code === 'string' ? d.code : undefined
+        message =
+          typeof d.message === 'string'
+            ? d.message
+            : code ?? JSON.stringify(detail)
+      } else {
+        message = String(detail)
+      }
+    } else {
+      message = `Request failed: ${res.status}`
+    }
+    throw new ApiError(res.status, message, body, code)
   }
 
   return body as T
