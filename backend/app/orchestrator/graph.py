@@ -344,6 +344,42 @@ def _specialists_have_strong_consensus(specialist_outputs: dict | None) -> bool:
     return len(set(top_diffs)) == 1
 
 
+# ---------------------------------------------------------------------------
+# Subscription tier gating for specialist dispatch (hard blocker #1).
+#
+# Free users do NOT get the multi-specialist analysis. We gate INSIDE the
+# node so dispatch_specialists is never called → 0 LLM tokens of the smart
+# tier are consumed by free traffic. Downstream nodes see an empty
+# specialist_outputs and a sentinel `tier_gated_specialists=True` flag.
+# ---------------------------------------------------------------------------
+
+
+def _should_gate_specialists(state: ClinicalCaseState) -> bool:
+    """True iff the user's subscription tier doesn't include specialist analysis.
+
+    Defensive default: any value other than the exact string "paid" gates.
+    Missing field, None, "free", or unknown legacy values all return True.
+    """
+    tier = state.get("subscription_tier") or "free"
+    return tier != "paid"
+
+
+async def _maybe_dispatch_specialists(
+    state: ClinicalCaseState,
+    chat_model_factory,
+) -> dict:
+    """Run specialist dispatch unless the user's tier gates it.
+
+    `chat_model_factory` is a zero-arg callable returning a fresh chat model.
+    It is only invoked when dispatch actually runs — gated paths cost zero
+    tokens AND zero model instantiations.
+    """
+    if _should_gate_specialists(state):
+        return {"specialist_outputs": {}, "tier_gated_specialists": True}
+    chat_model = chat_model_factory()
+    return await dispatch_specialists(state, chat_model=chat_model)
+
+
 def _specialists_router(state: ClinicalCaseState) -> str:
     """Route after specialists dispatch.
 
@@ -413,9 +449,14 @@ def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     workflow.add_node("classification", classifier)
 
     async def specialist_node(state: ClinicalCaseState) -> dict:
-        # Fresh model per invocation — specialists share tier but each gets their own instance
-        spec_model = get_chat_model("fast", cred, temperature=0.3)
-        return await dispatch_specialists(state, chat_model=spec_model)
+        # Fresh model per invocation — specialists share tier but each gets their own instance.
+        # Gating happens inside _maybe_dispatch_specialists: for free users we
+        # skip dispatch entirely and emit tier_gated_specialists=True. The
+        # factory pattern means we don't even instantiate the model when gated.
+        return await _maybe_dispatch_specialists(
+            state,
+            lambda: get_chat_model("fast", cred, temperature=0.3),
+        )
 
     workflow.add_node("specialists", specialist_node)
     workflow.add_node("medical_board", medical_board)

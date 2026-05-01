@@ -20,14 +20,16 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
+import pytest  # noqa: F401 — kept for asyncio-mode=auto plugin discovery
 
 from app.orchestrator.graph import (
     _maybe_dispatch_specialists,
     _should_gate_specialists,
 )
 
-pytestmark = pytest.mark.asyncio
+# NOTE: --asyncio-mode=auto handles the async tests; we don't apply a module-
+# level pytest.mark.asyncio because half of these tests are sync (predicate
+# unit tests) and the marker would emit a noisy warning on those.
 
 
 # ---------------------------------------------------------------------------

@@ -38,6 +38,14 @@ class ClinicalCaseState(TypedDict):
     # Especialistas
     specialist_outputs: dict[str, dict]  # {specialty: analysis}
 
+    # Subscription tier gating (hard blocker #1, decided 2026-05-01).
+    # `subscription_tier` is the User.subscription_tier carried into the graph.
+    # `tier_gated_specialists` is set True by specialist_node when dispatch is
+    # skipped because the user is not paid — downstream nodes (synthesizer)
+    # use this to surface an upgrade hint.
+    subscription_tier: Optional[str]
+    tier_gated_specialists: bool
+
     # Mesa Médica (v2)
     medical_board_result: Optional[dict]
     debate_rounds: int

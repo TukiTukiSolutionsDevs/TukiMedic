@@ -254,6 +254,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
             graph = await get_or_build_graph(str(user.id))
             state = create_initial_state(case_id_str, str(user.id), content)
             state["messages"] = history  # inject conversation history
+            # Propagate subscription tier so specialist_node can gate paid-only
+            # multi-agent dispatch (hard blocker #1, decided 2026-05-01).
+            state["subscription_tier"] = user.subscription_tier
 
             # Level 2 — inject relevant clinical facts from PostgreSQL (graceful degradation)
             try:
