@@ -232,6 +232,32 @@ async def _escalation_node(state: ClinicalCaseState) -> dict:
     }
 
 
+def _with_disclaimer(node: NodeFn) -> NodeFn:
+    """Ensure BASE_DISCLAIMER is always present in synthesized_response.
+
+    Idempotent: if the response already contains BASE_DISCLAIMER (case-insensitive
+    exact match), it is not appended again.
+
+    This guards against LLM-paraphrased disclaimers: Gemini fills
+    SynthesizedResponse.disclaimer with a non-empty paraphrase, which causes
+    _compose_patient_text to skip the BASE_DISCLAIMER fallback.  Any path
+    through the synthesizer node must include the canonical disclaimer so the
+    guardrail and clinical-eval checks pass.
+    """
+
+    async def _wrapped(state: dict) -> dict:
+        result = await node(state)
+        response = result.get("synthesized_response") or ""
+        if BASE_DISCLAIMER.lower() not in response.lower():
+            result = {
+                **result,
+                "synthesized_response": response.rstrip() + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER,
+            }
+        return result
+
+    return _wrapped
+
+
 def _guardrail_router(state: ClinicalCaseState) -> str:
     """Route after guardrail check."""
     if state.get("guardrail_interrupt"):
@@ -303,7 +329,7 @@ def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     workflow.add_node(
         "synthesizer",
         _audit_node(
-            synthesizer,
+            _with_disclaimer(synthesizer),
             action="response_synthesized",
             model_version=SYNTHESIZER_MODEL,
             build_details=_synthesizer_details,
