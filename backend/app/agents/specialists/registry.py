@@ -48,6 +48,10 @@ ALIASES: dict[str, str] = {
     # The accented "Dermatología" already normalizes to "dermatologia"
     # via _normalize_specialty, so only the short form needs an alias entry.
     "derma": "dermatologia",
+    # Endocrinology — short alias used by classifier / users.
+    # The accented "Endocrinología" already normalizes to "endocrinologia"
+    # via _normalize_specialty, so only the short form needs an alias entry.
+    "endocrino": "endocrinologia",
 }
 
 
