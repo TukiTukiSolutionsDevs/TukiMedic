@@ -247,7 +247,11 @@ class TestGuardrailAgent:
         assert result["guardrail_interrupt"] is False
 
     @pytest.mark.asyncio
-    async def test_specialist_outputs_are_checked(self):
+    async def test_specialist_outputs_are_NOT_checked(self):
+        """Specialist outputs are intermediate clinical artefacts; the
+        guardrail prompt is patient-facing and was producing false-positive
+        flags on legitimate clinical language. Only `synthesized_response`
+        is reviewed now — see tuki-medic/guardrail-investigation."""
         agent = make_agent_with_mock(GuardrailCheck(approved=True))
         state = make_state(
             specialist_outputs={
@@ -260,7 +264,8 @@ class TestGuardrailAgent:
             }
         )
         result = await agent(state)
-        agent.llm.ainvoke.assert_called_once()
+        # No synthesized_response present → guardrail should not invoke the LLM.
+        agent.llm.ainvoke.assert_not_called()
         assert result["current_node"] == "guardrail"
 
     # ---- Fix A.2 — modify severity must rewrite the patient response ----
