@@ -308,6 +308,21 @@ def _guardrail_router(state: ClinicalCaseState) -> str:
     return END
 
 
+def _specialists_router(state: ClinicalCaseState) -> str:
+    """Route after specialists dispatch.
+
+    Green-triage cases bypass medical_board to save ~30-40s of smart-tier
+    LLM latency. The medical board's deliberative debate adds limited value
+    for low-stakes consultations where the dominant differential is benign.
+
+    Yellow and any non-green triage level keep the full deliberation path.
+    Red cases never reach this router because triage_router escalates first.
+    """
+    if state.get("triage_level") == "green":
+        return "synthesizer"
+    return "medical_board"
+
+
 # ---------------------------------------------------------------------------
 # Graph builder
 # ---------------------------------------------------------------------------
@@ -394,8 +409,15 @@ def build_graph(cred: ProviderCredentialDTO) -> StateGraph:
     # classification → specialists (always)
     workflow.add_conditional_edges("classification", classification_router)
 
-    # specialists → medical_board (always)
-    workflow.add_edge("specialists", "medical_board")
+    # specialists → medical_board | synthesizer (bypass for green triage)
+    workflow.add_conditional_edges(
+        "specialists",
+        _specialists_router,
+        {
+            "medical_board": "medical_board",
+            "synthesizer": "synthesizer",
+        },
+    )
 
     # medical_board → synthesizer | anamnesis (clarification loop) | devils_advocate
     # NOTE: medical_board_router returns "synthesis" not "synthesizer" — remap here.
