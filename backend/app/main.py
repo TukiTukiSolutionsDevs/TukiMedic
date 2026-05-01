@@ -15,6 +15,7 @@ from app.api.v1.export import router as export_router
 from app.core.config import settings
 from app.core.database import async_session
 from app.core.logging_setup import configure_logging
+from app.core.middleware.security_headers import SecurityHeadersMiddleware
 from app.core.rate_limit import limiter
 from app.core.redis import redis_client
 from app.core.storage import storage_client
@@ -38,7 +39,11 @@ app = FastAPI(
     description="MedAgent — Plataforma Conversacional Clínica Orquestada",
 )
 
-# Rate limiting — must be wired before routers so middleware sees every request.
+# Defensive HTTP security headers — must be the OUTERMOST middleware so
+# every response (including rate-limit denials and unhandled exceptions)
+# carries HSTS / CSP / X-Frame-Options / etc. Order matters: starlette
+# applies the LAST-added middleware as the outermost wrapper.
+# Rate limiting — wired before routers so middleware sees every request.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
@@ -50,6 +55,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
