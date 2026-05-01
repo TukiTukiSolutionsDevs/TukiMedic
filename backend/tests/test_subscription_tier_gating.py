@@ -181,21 +181,23 @@ async def test_documents_upload_rejects_free_user(free_client):
 
 
 async def test_documents_upload_allows_paid_user(paid_client):
-    """We don't assert on the success body — storage and bg task are mocked
-    out — only that the tier gate doesn't fire (no 403)."""
+    """We don't assert on the success body — storage, audit and bg task are
+    mocked out — only that the tier gate doesn't fire (no 403). The upload
+    happy path itself is exercised by test_documents.py / test_anamnesis.py."""
     with patch(
         "app.api.v1.documents.storage_client.upload_file",
         new=AsyncMock(return_value=None),
     ), patch(
         "app.api.v1.documents._process_document_bg",
         new=AsyncMock(return_value=None),
+    ), patch(
+        "app.api.v1.documents.log_action",
+        new=AsyncMock(return_value=None),
     ):
         files = {"file": ("p.png", io.BytesIO(_TINY_PNG), "image/png")}
         async with paid_client as c:
             resp = await c.post("/api/v1/documents/upload", files=files)
 
-    # Anything except 403 is fine for the gate test; the upload path itself
-    # is exercised by test_documents.py / test_anamnesis.py.
     assert resp.status_code != 403
 
 
