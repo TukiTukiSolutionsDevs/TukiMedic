@@ -41,14 +41,35 @@ BASE_DISCLAIMER = (
 )
 DISCLAIMER_SEPARATOR = "\n\n---\n\n"
 
+# Shown to free users when specialist analysis was skipped at the orchestrator
+# level (see `_should_gate_specialists` in app.orchestrator.graph). Stable
+# constant so the frontend can detect / restyle it if needed.
+TIER_UPGRADE_HINT = (
+    "Análisis con especialistas (8 agentes) disponible en el plan Premium. "
+    "Esta respuesta se basa en el triaje básico."
+)
 
-def _compose_patient_text(patient_response: str, disclaimer: str | None) -> str:
-    """Append disclaimer to the patient response with a visible separator.
+
+def _compose_patient_text(
+    patient_response: str,
+    disclaimer: str | None,
+    *,
+    upgrade_hint: str | None = None,
+) -> str:
+    """Append disclaimer (and optional upgrade hint) to the patient response.
 
     The patient_response is sanitized via `sanitize_patient_markdown` before
     being concatenated — this removes HTML tags, dangerous URL schemes,
     Markdown image references, and zero-width Unicode characters. The
-    disclaimer is left intact (we control its content).
+    disclaimer and the optional upgrade_hint are left intact (we control
+    both sources).
+
+    Layout (when both present):
+        body
+        ---
+        upgrade_hint
+        ---
+        disclaimer
 
     Falls back to BASE_DISCLAIMER if the LLM returned an empty or missing one.
     """
@@ -56,9 +77,15 @@ def _compose_patient_text(patient_response: str, disclaimer: str | None) -> str:
     extra = (disclaimer or "").strip()
     if not extra:
         extra = BASE_DISCLAIMER
-    if not body:
-        return extra
-    return f"{body}{DISCLAIMER_SEPARATOR}{extra}"
+    hint = (upgrade_hint or "").strip()
+
+    parts: list[str] = []
+    if body:
+        parts.append(body)
+    if hint:
+        parts.append(hint)
+    parts.append(extra)
+    return DISCLAIMER_SEPARATOR.join(parts)
 
 
 # Ranking of attention levels — higher == more urgent.
@@ -234,9 +261,17 @@ class SynthesizerAgent:
         # 5f2a716): cardio-002 + gyneco-001 yellow→urgencia via guardrail.
         clamped_attention = _clamp_attention(triage_level, result.attention_level)
 
+        # Free users with gated specialist analysis get an upgrade hint
+        # appended between the body and the disclaimer.
+        upgrade_hint = (
+            TIER_UPGRADE_HINT if state.get("tier_gated_specialists") else None
+        )
+
         return {
             "synthesized_response": _compose_patient_text(
-                result.patient_response, result.disclaimer
+                result.patient_response,
+                result.disclaimer,
+                upgrade_hint=upgrade_hint,
             ),
             "attention_level": clamped_attention,
             "current_node": "synthesizer",
