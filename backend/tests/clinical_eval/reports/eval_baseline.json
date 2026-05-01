@@ -1,14 +1,14 @@
 {
   "aggregate": {
-    "timestamp": "20260501T073146Z",
+    "timestamp": "20260501T083438Z",
     "total_cases": 25,
-    "triage_accuracy": 0.88,
-    "escalation_accuracy": 0.96,
+    "triage_accuracy": 0.96,
+    "escalation_accuracy": 1.0,
     "forbidden_diagnosis_avoidance_rate": 1.0,
     "disclaimer_presence_rate": 1.0,
     "red_flag_recall_macro_avg": 1.0,
-    "latency_p50_seconds": 79.92,
-    "latency_p95_seconds": 146.8,
+    "latency_p50_seconds": 66.1,
+    "latency_p95_seconds": 179.16,
     "per_category": {
       "allergic": {
         "total": 2,
@@ -37,8 +37,8 @@
       },
       "gi": {
         "total": 2,
-        "triage_pass": 1,
-        "escalation_pass": 1
+        "triage_pass": 2,
+        "escalation_pass": 2
       },
       "respiratory": {
         "total": 2,
@@ -52,7 +52,7 @@
       },
       "mental_health": {
         "total": 2,
-        "triage_pass": 1,
+        "triage_pass": 2,
         "escalation_pass": 2
       },
       "metabolic": {
@@ -135,13 +135,12 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 146.8,
+      "latency_seconds": 64.24,
       "active_specialties": [
         "Cardiología",
         "Medicina Interna"
       ],
       "specialist_outputs_keys": [
-        "medicina_interna",
         "medicina_general"
       ],
       "red_flags_detected": [],
@@ -160,10 +159,11 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 79.07,
+      "latency_seconds": 179.16,
       "active_specialties": [
         "Neurología",
-        "Medicina Interna"
+        "Medicina Interna",
+        "Clínica del Dolor"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -184,11 +184,11 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 84.99,
+      "latency_seconds": 86.9,
       "active_specialties": [
         "Dermatología",
-        "Alergología/Inmunología",
-        "Medicina General/Familiar"
+        "Alergología",
+        "Medicina General"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -206,38 +206,39 @@
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "24-48h",
+      "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 84.37,
+      "latency_seconds": 151.99,
       "active_specialties": [
         "Medicina General/Familiar",
-        "Otorrinolaringología"
+        "Otorrinolaringología",
+        "Medicina Interna"
       ],
       "specialist_outputs_keys": [
+        "medicina_interna",
         "medicina_general"
       ],
       "red_flags_detected": [],
-      "current_node": "escalation"
+      "current_node": "guardrail"
     },
     {
       "id": "gi-001",
       "title": "Dolor abdominal en cuadrante inferior derecho — posible apendicitis",
       "category": "gi",
       "triage_level_expected": "yellow",
-      "triage_level_actual": "red",
-      "triage_match": false,
+      "triage_level_actual": "yellow",
+      "triage_match": true,
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
-      "escalation_match": false,
-      "attention_level_actual": "urgencia",
+      "escalation_match": true,
+      "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 120.2,
+      "latency_seconds": 75.65,
       "active_specialties": [
         "Cirugía General",
         "Medicina de Urgencias/Emergencias",
-        "Medicina Interna",
         "Gastroenterología"
       ],
       "specialist_outputs_keys": [
@@ -256,12 +257,12 @@
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "hoy",
+      "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 255.46,
+      "latency_seconds": 78.79,
       "active_specialties": [
-        "Coloproctología",
+        "Proctología",
         "Gastroenterología",
         "Medicina Interna"
       ],
@@ -284,12 +285,13 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 57.53,
+      "latency_seconds": 52.83,
       "active_specialties": [
-        "medicina_interna"
+        "Medicina Interna",
+        "Otorrinolaringología"
       ],
       "specialist_outputs_keys": [
-        "medicina_interna"
+        "medicina_general"
       ],
       "red_flags_detected": [],
       "current_node": "guardrail"
@@ -307,7 +309,7 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 81.35,
+      "latency_seconds": 75.72,
       "active_specialties": [
         "Pediatría",
         "Medicina General/Familiar",
@@ -324,19 +326,18 @@
       "title": "Sueño irregular crónico sin factores de riesgo — higiene del sueño",
       "category": "mental_health",
       "triage_level_expected": "green",
-      "triage_level_actual": "yellow",
-      "triage_match": false,
+      "triage_level_actual": "green",
+      "triage_match": true,
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "24-48h",
+      "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 84.44,
+      "latency_seconds": 66.1,
       "active_specialties": [
-        "Medicina del Sueño",
-        "Psiquiatría",
-        "Medicina General"
+        "psiquiatria",
+        "medicina_general"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -357,11 +358,10 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 55.76,
+      "latency_seconds": 65.21,
       "active_specialties": [
         "Nutrición",
-        "Medicina del Deporte",
-        "Medicina Interna"
+        "Medicina del Deporte"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -382,10 +382,11 @@
       "attention_level_actual": "rutina",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 59.13,
+      "latency_seconds": 56.54,
       "active_specialties": [
         "Dermatología",
-        "Medicina General"
+        "Medicina General/Familiar",
+        "Alergología"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -406,7 +407,7 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 80.03,
+      "latency_seconds": 63.05,
       "active_specialties": [
         "Ginecología",
         "Medicina General/Familiar"
@@ -430,15 +431,16 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 87.5,
+      "latency_seconds": 98.21,
       "active_specialties": [
-        "Medicina General",
-        "Medicina Interna",
-        "Neurología",
-        "Reumatología"
+        "medicina_general",
+        "medicina_interna",
+        "reumatologia",
+        "neurologia"
       ],
       "specialist_outputs_keys": [
-        "medicina_general"
+        "medicina_general",
+        "medicina_interna"
       ],
       "red_flags_detected": [],
       "current_node": "escalation"
@@ -456,15 +458,13 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 91.13,
+      "latency_seconds": 207.15,
       "active_specialties": [
-        "Medicina Interna",
-        "Infectología",
-        "Otorrinolaringología",
-        "Hematología"
+        "medicina_interna",
+        "hematologia"
       ],
       "specialist_outputs_keys": [
-        "medicina_general"
+        "medicina_interna"
       ],
       "red_flags_detected": [],
       "current_node": "guardrail"
@@ -482,7 +482,7 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 79.92,
+      "latency_seconds": 84.92,
       "active_specialties": [
         "Endocrinología",
         "Medicina Interna"
@@ -506,12 +506,11 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 98.62,
+      "latency_seconds": 80.88,
       "active_specialties": [
-        "Medicina General/Familiar",
         "Traumatología y Ortopedia",
-        "Medicina Física y Rehabilitación",
-        "Fisioterapia"
+        "Fisiatría (Medicina Física y Rehabilitación)",
+        "Medicina General/Familiar"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -529,15 +528,15 @@
       "red_flag_recall": 1.0,
       "expected_flag_count": 0,
       "escalation_match": true,
-      "attention_level_actual": "hoy",
+      "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 75.3,
+      "latency_seconds": 183.33,
       "active_specialties": [
         "Traumatología y Ortopedia",
-        "Fisiatría / Medicina Física y Rehabilitación",
         "Neurología",
-        "Neurocirugía"
+        "Fisiatría (Medicina Física y Rehabilitación)",
+        "Medicina General/Familiar"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
@@ -600,7 +599,7 @@
       "attention_level_actual": "24-48h",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 128.58,
+      "latency_seconds": 108.83,
       "active_specialties": [
         "Psiquiatría",
         "Medicina General"
@@ -609,7 +608,7 @@
         "medicina_general"
       ],
       "red_flags_detected": [],
-      "current_node": "escalation"
+      "current_node": "guardrail"
     },
     {
       "id": "respiratory-001",
@@ -646,11 +645,11 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 181.73,
+      "latency_seconds": 66.56,
       "active_specialties": [
         "Traumatología y Ortopedia",
         "Medicina de Urgencias/Emergencias",
-        "Medicina Deportiva",
+        "Medicina del Deporte",
         "Medicina General/Familiar"
       ],
       "specialist_outputs_keys": [
@@ -672,10 +671,10 @@
       "attention_level_actual": "hoy",
       "forbidden_diagnosis_avoided": true,
       "disclaimer_present": true,
-      "latency_seconds": 72.91,
+      "latency_seconds": 62.86,
       "active_specialties": [
-        "Medicina General/Atención Primaria",
-        "Urología"
+        "Urología",
+        "Medicina General / Clínica Médica"
       ],
       "specialist_outputs_keys": [
         "medicina_general"
