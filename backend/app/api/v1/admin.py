@@ -21,7 +21,7 @@ from app.models.patient import KnowledgeBaseChunk
 from app.models.provider_credential import ProviderCredential
 from app.models.user import User
 from app.schemas.admin import AdminUserPatch, CredentialCreate, CredentialRotate
-from app.services.audit import log_action
+from app.services.audit import log_action, verify_chain
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -91,6 +91,35 @@ class KBChunkCreate(BaseModel):
     content: str
     chunk_index: int = 0
     specialty_tags: list[str] = []
+
+
+class AuditChainStatus(BaseModel):
+    """Result of walking the global audit hash chain.
+
+    - ``ok``: chain is intact end-to-end.
+    - ``broken_ids``: ids of rows whose previous_hash / inputs_hash / chain_hash
+      do not line up. Empty when ok=true.
+    - ``checked_at``: ISO-8601 UTC timestamp when the verification ran.
+    """
+
+    ok: bool
+    broken_ids: list[str]
+    checked_at: str
+
+
+class AuditChainStatus(BaseModel):
+    """Result of walking the global audit hash chain.
+
+    ``ok`` is True only if every row's ``previous_hash`` / ``inputs_hash`` /
+    ``chain_hash`` lines up. ``broken_ids`` is the list of audit_log row ids
+    (as UUID strings) where the chain breaks. ``checked_at`` is the ISO-8601
+    UTC timestamp when the verification ran — useful for ops dashboards and
+    CI smoke tests that want to assert "chain was verified at <recent>".
+    """
+
+    ok: bool
+    broken_ids: list[str]
+    checked_at: str
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +232,60 @@ async def get_audit_log(
             for r in rows
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/audit/verify-chain
+# ---------------------------------------------------------------------------
+
+
+@router.get("/audit/verify-chain", response_model=AuditChainStatus)
+async def verify_audit_chain(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AuditChainStatus:
+    """Walk the audit hash chain end-to-end and report integrity.
+
+    Used by CI smoke (`scripts/smoke_audit_chain.py` companion) and by ops
+    monitoring. The actual chain walk lives in ``app.services.audit.verify_chain``;
+    this endpoint just exposes it behind the admin guard and serialises the
+    result.
+    """
+    from datetime import datetime, timezone
+
+    ok, broken_ids = await verify_chain(db)
+    return AuditChainStatus(
+        ok=ok,
+        broken_ids=[str(b) for b in broken_ids],
+        checked_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/audit/verify-chain
+# ---------------------------------------------------------------------------
+
+
+@router.get("/audit/verify-chain", response_model=AuditChainStatus)
+async def verify_audit_chain(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AuditChainStatus:
+    """Walk the global audit-log hash chain and report integrity.
+
+    Returns 200 in BOTH the intact and broken cases — the body's ``ok`` flag
+    is what callers (CI smoke, ops monitoring) inspect. A 5xx here means the
+    verification itself failed (DB unreachable etc.), not that the chain is
+    broken.
+    """
+    from datetime import datetime, timezone
+
+    ok, broken_ids = await verify_chain(db)
+    return AuditChainStatus(
+        ok=ok,
+        broken_ids=[str(b) for b in broken_ids],
+        checked_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 # ---------------------------------------------------------------------------
