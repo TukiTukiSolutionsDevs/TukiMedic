@@ -42,6 +42,9 @@ services:
     volumes:
       - minio_data:/data
     command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -57,12 +60,12 @@ services:
     env_file:
       - ../../backend/.env
     environment:
-      ENVIRONMENT: production
+      ENVIRONMENT: development
       LOG_LEVEL: INFO
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-medagent}:${POSTGRES_PASSWORD:-medagent}@postgres:5432/${POSTGRES_DB:-medagent}
       REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT_URL: http://minio:9000
-      ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      S3_ENDPOINT: http://minio:9000
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:3001"]'
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,7 +74,7 @@ services:
       minio:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8001:8000"
     restart: unless-stopped
 
   frontend:
@@ -88,7 +91,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     restart: unless-stopped
 
 volumes:
