@@ -27,6 +27,46 @@ _GUARDRAIL_FALLBACK = GuardrailCheck(
 )
 
 
+# Violation types whose critical-severity manifestations actually warrant
+# interrupting the patient flow. Other violation_types (e.g. missing_disclaimer)
+# are recoverable in-band — we record them in `violations` but do NOT interrupt.
+_INTERRUPT_WORTHY_VIOLATIONS = frozenset({
+    "ignored_red_flag",
+    "prescription_with_dose",
+    "symptom_minimization",
+    "prompt_injection",
+    "definitive_diagnosis_unsafe",
+})
+
+
+def _clamp_interrupt(check: GuardrailCheck) -> bool:
+    """Defensive clamp on the guardrail INTERRUPT signal.
+
+    The LLM's `interruption_level` is not anchored to severity in the prompt,
+    so `INTERRUPT` was being emitted on benign clinical text (e.g. green/yellow
+    cases routed to escalation_node despite no real emergency). This produced
+    false-positive interrupts that degraded UX and added latency without
+    preventing harm.
+
+    Rule: only return True if ALL of the following hold:
+      - check.interruption_level == INTERRUPT
+      - at least one violation has severity == "critical"
+      - at least one violation has a clinically-dangerous violation_type
+        (see _INTERRUPT_WORTHY_VIOLATIONS)
+
+    Mirrors `_clamp_triage` (triage/agent.py) and `_clamp_attention`
+    (synthesizer/agent.py): LLM categorical contracts are validated against
+    structured evidence before they alter the flow.
+    """
+    if check.interruption_level != InterruptionLevel.INTERRUPT:
+        return False
+    has_critical = any(v.severity == "critical" for v in check.violations)
+    has_worthy = any(
+        v.violation_type in _INTERRUPT_WORTHY_VIOLATIONS for v in check.violations
+    )
+    return has_critical and has_worthy
+
+
 class GuardrailAgent:
     """Monitor de seguridad en tiempo real — inspirado en g-AMIE."""
 
@@ -49,13 +89,24 @@ class GuardrailAgent:
             ).with_structured_output(GuardrailCheck)
 
     async def __call__(self, state: ClinicalCaseState) -> dict:
-        """Check current state content for safety violations."""
-        violations = []
+        """Check the synthesized patient-facing response for safety violations.
+
+        Only `synthesized_response` is reviewed here. Specialist outputs are
+        intermediate clinical artefacts authored by domain LLMs — they use
+        clinical language (drug names, doses, definitive-sounding phrasing)
+        that the patient-facing GUARDRAIL_SYSTEM_PROMPT mis-flags. The
+        synthesizer is the boundary that turns those internals into
+        patient text; that's the artifact we monitor.
+
+        The interruption signal goes through `_clamp_interrupt`, which
+        requires both critical severity AND a clinically-dangerous
+        violation_type before flipping the flow to escalation.
+        """
+        violations: list[dict] = []
         interrupt = False
         # Default: keep the original patient-facing response untouched.
         final_response = state.get("synthesized_response")
 
-        # 1. Check synthesized_response if present (final output — highest priority)
         if state.get("synthesized_response"):
             check = await self.check_content(
                 state["synthesized_response"],
@@ -65,7 +116,7 @@ class GuardrailAgent:
                 for v in check.violations:
                     v.node_source = "synthesizer"
                 violations.extend([v.model_dump() for v in check.violations])
-                if check.interruption_level == InterruptionLevel.INTERRUPT:
+                if _clamp_interrupt(check):
                     interrupt = True
                 # Apply MODIFY: rewrite the patient-facing text with the
                 # guardrail's suggestion. Falls back to the original if the
@@ -76,25 +127,6 @@ class GuardrailAgent:
                     )
                     if suggested:
                         final_response = suggested + DISCLAIMER_SEPARATOR + BASE_DISCLAIMER
-
-        # 2. Check specialist outputs for unsafe content
-        for specialty, output in (state.get("specialist_outputs") or {}).items():
-            content = ""
-            if isinstance(output, dict):
-                content = output.get("clinical_impression", "") + " " + " ".join(
-                    output.get("recommendations", [])
-                )
-            elif isinstance(output, str):
-                content = output
-
-            if content.strip():
-                check = await self.check_content(content, node_name=f"specialist_{specialty}")
-                if not check.approved:
-                    for v in check.violations:
-                        v.node_source = f"specialist_{specialty}"
-                    violations.extend([v.model_dump() for v in check.violations])
-                    if check.interruption_level == InterruptionLevel.INTERRUPT:
-                        interrupt = True
 
         result = {
             "guardrail_violations": violations,
