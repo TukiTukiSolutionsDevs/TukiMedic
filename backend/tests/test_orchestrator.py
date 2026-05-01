@@ -202,7 +202,15 @@ class TestEscalationNode:
             assert flag in result["synthesized_response"]
 
     def test_attention_level_is_urgencia(self):
-        result = asyncio.run(_escalation_node(_make_state(red_flags=[])))
+        # Force the emergency path explicitly: red triage + a red flag is
+        # what triggers ``attention_level="urgencia"`` in _escalation_node.
+        # Prior to the dual-path clamp (sesión 1 over-triage fix), every
+        # call returned "urgencia" unconditionally.
+        result = asyncio.run(
+            _escalation_node(
+                _make_state(triage_level="red", red_flags=["dolor_pecho"])
+            )
+        )
         assert result["attention_level"] == "urgencia"
 
     def test_current_node_is_escalation(self):
@@ -210,7 +218,15 @@ class TestEscalationNode:
         assert result["current_node"] == "escalation"
 
     def test_response_mentions_emergency(self):
-        result = asyncio.run(_escalation_node(_make_state(red_flags=[])))
+        # Emergency wording is only emitted on the real-emergency branch
+        # (triage_level="red" + red_flags non-empty). The non-emergency
+        # branch returns a neutral guardrail-style message — covered by
+        # tests/orchestrator/test_escalation_node.py.
+        result = asyncio.run(
+            _escalation_node(
+                _make_state(triage_level="red", red_flags=["dolor_pecho"])
+            )
+        )
         text = result["synthesized_response"].lower()
         assert any(w in text for w in ["urgencia", "emergencia", "inmediata"])
 
