@@ -7,8 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -55,8 +56,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.546 0.243 264.376);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -81,6 +82,60 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* TukiMedic brand tokens */
+  --tm-blue-50: #EFF6FF;
+  --tm-blue-100: #DBEAFE;
+  --tm-blue-200: #BFDBFE;
+  --tm-blue-300: #93C5FD;
+  --tm-blue-400: #60A5FA;
+  --tm-blue-500: #3B82F6;
+  --tm-blue-600: #2563EB;
+  --tm-blue-700: #1D4ED8;
+  --tm-blue-800: #1E40AF;
+  --tm-blue-900: #1E3A8A;
+  --tm-blue-950: #172554;
+
+  --tm-yellow-300: #FCD34D;
+  --tm-yellow-400: #FBBF24;
+  --tm-yellow-500: #F59E0B;
+
+  /* Triage */
+  --tm-green-50: #ECFDF5;
+  --tm-green-500: #10B981;
+  --tm-green-600: #059669;
+  --tm-green-700: #047857;
+
+  --tm-amber-50: #FFFBEB;
+  --tm-amber-500: #F59E0B;
+  --tm-amber-600: #D97706;
+  --tm-amber-700: #B45309;
+
+  --tm-red-50: #FEF2F2;
+  --tm-red-100: #FEE2E2;
+  --tm-red-500: #EF4444;
+  --tm-red-600: #DC2626;
+  --tm-red-700: #B91C1C;
+  --tm-red-900: #7F1D1D;
+
+  /* Neutrals */
+  --tm-bg: #FBFCFD;
+  --tm-bg-soft: #F4F6F8;
+  --tm-surface: #FFFFFF;
+  --tm-border: #E6EAEF;
+  --tm-border-strong: #CFD6DE;
+  --tm-text: #0B1220;
+  --tm-text-muted: #5B6573;
+  --tm-text-subtle: #8A94A3;
+
+  --tm-radius-sm: 8px;
+  --tm-radius: 12px;
+  --tm-radius-lg: 18px;
+  --tm-radius-xl: 24px;
+
+  --tm-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.02);
+  --tm-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+  --tm-shadow-lg: 0 16px 40px -12px rgba(15, 23, 42, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
 }
 
 .dark {
@@ -90,7 +145,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: oklch(0.703 0.168 257.033);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -115,6 +170,29 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* TukiMedic dark overrides */
+  --tm-bg: #0A0E14;
+  --tm-bg-soft: #11151D;
+  --tm-surface: #161B25;
+  --tm-border: #232938;
+  --tm-border-strong: #2F3748;
+  --tm-text: #E8ECF2;
+  --tm-text-muted: #97A2B3;
+  --tm-text-subtle: #6B7588;
+
+  --tm-blue-50: #0E1B36;
+  --tm-blue-100: #14254A;
+  --tm-blue-700: #60A5FA;
+
+  --tm-green-50: #0A2218;
+  --tm-amber-50: #2A1E08;
+  --tm-red-50: #2A0F12;
+  --tm-red-100: #3B1518;
+
+  --tm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --tm-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --tm-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 @layer base {
