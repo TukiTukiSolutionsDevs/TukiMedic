@@ -54,6 +54,46 @@ def _compose_patient_text(patient_response: str, disclaimer: str | None) -> str:
     return f"{body}{DISCLAIMER_SEPARATOR}{extra}"
 
 
+# Ranking of attention levels — higher == more urgent.
+_ATTENTION_RANK: dict[str, int] = {
+    "rutina": 0,
+    "24-48h": 1,
+    "hoy": 2,
+    "urgencia": 3,
+}
+
+# Per-triage attention ceiling. Keeps the synthesizer LLM from escalating
+# beyond what triage classified, while preserving downward flexibility (the
+# LLM can pick any level <= ceiling). Red has no ceiling — urgencia is fine.
+_TRIAGE_ATTENTION_CEILING: dict[str, str] = {
+    "green": "24-48h",
+    "yellow": "hoy",
+}
+
+
+def _clamp_attention(triage_level: str | None, attention_level: str) -> str:
+    """Clamp a synthesizer-chosen attention level by the triage ceiling.
+
+    The synthesizer prompt biases the LLM toward "more conservative" attention
+    levels when specialists disagree. Combined with multi-specialist outputs
+    on yellow/green cases, this systematically over-escalates to ``urgencia``.
+    The clamp guarantees attention_level <= ceiling derived from triage_level.
+
+    No upward clamp: if the LLM picks something LESS urgent than the ceiling,
+    that's preserved (it could be a legitimate clinical judgment that the
+    case is benign even though triage flagged it yellow).
+
+    For unknown triage_level (None or missing key), the clamp is skipped —
+    we cannot derive a safe ceiling, so we trust the LLM.
+    """
+    ceiling = _TRIAGE_ATTENTION_CEILING.get(triage_level or "")
+    if ceiling is None:
+        return attention_level
+    if _ATTENTION_RANK[attention_level] > _ATTENTION_RANK[ceiling]:
+        return ceiling
+    return attention_level
+
+
 class SynthesizerAgent:
     """Agente sintetizador — nodo final del grafo de orquestación."""
 
@@ -178,10 +218,16 @@ class SynthesizerAgent:
         if not result.specialties_involved and specialties_involved:
             result.specialties_involved = specialties_involved
 
+        # Clamp attention_level by triage ceiling — defends against the LLM
+        # over-escalating yellow/green cases due to the "más conservador"
+        # rule in the synthesizer prompt. Surfaced by clinical eval (commit
+        # 5f2a716): cardio-002 + gyneco-001 yellow→urgencia via guardrail.
+        clamped_attention = _clamp_attention(triage_level, result.attention_level)
+
         return {
             "synthesized_response": _compose_patient_text(
                 result.patient_response, result.disclaimer
             ),
-            "attention_level": result.attention_level,
+            "attention_level": clamped_attention,
             "current_node": "synthesizer",
         }
