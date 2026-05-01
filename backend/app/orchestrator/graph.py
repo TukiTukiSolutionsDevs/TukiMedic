@@ -30,9 +30,10 @@ from app.agents.devils_advocate import DevilsAdvocateAgent
 from app.agents.guardrail import GuardrailAgent
 from app.agents.synthesizer import SynthesizerAgent
 
-# Re-export `async_session` so monkeypatching in tests works (and so audit
-# wrapper can open its own short-lived DB session without coupling to chat.py).
-from app.core.database import async_session  # noqa: F401 — patched in tests
+# Re-export `async_session` (NullPool-backed audit factory) so monkeypatching
+# in tests works.  The audit factory uses NullPool to prevent asyncpg
+# InterfaceError when LangGraph interleaves coroutines on the same event loop.
+from app.core.database import audit_session as async_session  # noqa: F401 — patched in tests
 
 from app.services.audit import log_clinical_decision
 from app.services.llm_router import ProviderCredentialDTO, get_chat_model
