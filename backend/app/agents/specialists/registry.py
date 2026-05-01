@@ -17,6 +17,35 @@ import unicodedata
 
 REGISTRY: dict[str, type] = {}
 
+# Alias map: normalized variant → canonical registry key.
+#
+# The classifier LLM emits multi-word specialty names that, after
+# `_normalize_specialty`, do not match any registered agent. Rather than
+# coercing the prompt to fix every variant, we route compatible siblings
+# explicitly here. Lookup order in `get_specialist`:
+#   1. Direct match in REGISTRY (canonical key).
+#   2. ALIASES[name] → canonical key → REGISTRY.
+#   3. None.
+#
+# Aliases are normalized via `_normalize_specialty` at lookup time, so
+# entries should already be in canonical snake_case ASCII form (matching
+# what the normalizer produces).
+ALIASES: dict[str, str] = {
+    # Traumatology umbrella: classifier emits "Traumatología y Ortopedia"
+    # and "Medicina Deportiva" — both fold into the trauma agent until a
+    # dedicated sport-medicine specialist is added.
+    "traumatologia_y_ortopedia": "traumatologia",
+    "ortopedia": "traumatologia",
+    "medicina_deportiva": "traumatologia",
+    # Family medicine sits inside general medicine for our purposes.
+    "medicina_familiar": "medicina_general",
+    "medicina_general_familiar": "medicina_general",
+    "medicina_general_y_familiar": "medicina_general",
+    # Obstetrics shares the gynecology agent.
+    "obstetricia": "ginecologia",
+    "ginecologia_y_obstetricia": "ginecologia",
+}
+
 
 def _normalize_specialty(name: str) -> str:
     """Normalize a specialty name for registry lookup.
@@ -71,15 +100,26 @@ def get_specialist(
 ) -> object | None:
     """Instancia y retorna un especialista por nombre normalizado. None si no existe.
 
+    Lookup order:
+      1. Direct match: ``REGISTRY[_normalize_specialty(name)]``.
+      2. Alias fallback: ``REGISTRY[ALIASES[_normalize_specialty(name)]]``.
+      3. ``None`` (specialty not implemented).
+
     Normalizes *name* before lookup so accented/capitalized variants from the
-    classifier (e.g. "Ginecología") resolve correctly to the registry key
-    "ginecologia".
+    classifier (e.g. "Ginecología", "Traumatología y Ortopedia") resolve
+    correctly to a canonical registry key.
 
     Prefer passing *chat_model* (pre-built ChatOpenAI from llm_router) so
     the specialist uses the provider-correct model tier. Falls back to the
     legacy api_key/base_url path for backward compatibility.
     """
-    cls = REGISTRY.get(_normalize_specialty(name))
+    canonical = _normalize_specialty(name)
+    cls = REGISTRY.get(canonical)
+    if cls is None:
+        # Try alias resolution before giving up.
+        aliased = ALIASES.get(canonical)
+        if aliased is not None:
+            cls = REGISTRY.get(aliased)
     if cls is None:
         return None
     if chat_model is not None:

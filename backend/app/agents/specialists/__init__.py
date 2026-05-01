@@ -9,6 +9,9 @@ from app.agents.specialists.general_medicine import GeneralMedicineAgent
 from app.agents.specialists.internal_medicine import InternalMedicineAgent
 from app.agents.specialists.pediatrics import PediatricsAgent
 from app.agents.specialists.gynecology import GynecologyAgent
+from app.agents.specialists.cardiology import CardiologyAgent
+from app.agents.specialists.traumatology import TraumatologyAgent
+from app.agents.specialists.neurology import NeurologyAgent
 from app.agents.specialists.pharmacology import PharmacologyAgent, PharmacologyAnalysis, DrugInteraction
 
 from app.agents.specialists.dispatcher import dispatch_specialists
@@ -30,6 +33,9 @@ __all__ = [
     "InternalMedicineAgent",
     "PediatricsAgent",
     "GynecologyAgent",
+    "CardiologyAgent",
+    "TraumatologyAgent",
+    "NeurologyAgent",
     "PharmacologyAgent",
     # Dispatcher
     "dispatch_specialists",
