@@ -45,12 +45,25 @@ def _make_regular_user():
     return u
 
 
-def _make_db():
+def _make_db(chain_head: str | None = None):
+    """Async-mock SQLAlchemy session.
+
+    ``chain_head`` controls what ``_current_chain_head`` resolves to:
+    - ``None`` (default) → empty chain → genesis ("0"*64)
+    - any 64-char hex   → chain has one prior row with that chain_hash
+    """
     db = AsyncMock()
     db.add = MagicMock()
     db.flush = AsyncMock()
     db.commit = AsyncMock()
-    db.execute = AsyncMock()
+
+    # Default execute returns a result whose scalar_one_or_none yields
+    # ``chain_head`` (mimicking a 1-column SELECT against an empty or
+    # populated table). HTTP endpoint tests override db.execute with a
+    # side_effect list and do not exercise the chain code path.
+    head_result = MagicMock()
+    head_result.scalar_one_or_none = MagicMock(return_value=chain_head)
+    db.execute = AsyncMock(return_value=head_result)
     return db
 
 
@@ -121,6 +134,13 @@ async def test_log_action_creates_entry():
     assert entry.action == "login"
     assert entry.user_id == user_id
     assert entry.ip_address == "127.0.0.1"
+    # Chain wiring: genesis row when DB is empty.
+    assert entry.previous_hash == "0" * 64
+    assert isinstance(entry.chain_hash, str) and len(entry.chain_hash) == 64
+    # inputs_hash is auto-synthesized for log_action so the chain has a
+    # stable invariant per row even when callers pass no details.
+    assert "inputs_hash" in entry.details
+    assert len(entry.details["inputs_hash"]) == 64
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +158,13 @@ async def test_log_action_with_details():
         details=details,
     )
 
-    assert entry.details == details
+    # Caller-supplied keys must be preserved verbatim.
+    assert entry.details["file"] == "report.pdf"
+    assert entry.details["size"] == 1024
+    # The chain wiring auto-injects inputs_hash so every audit row has a
+    # stable invariant — see app/services/audit.py::log_action.
+    assert "inputs_hash" in entry.details
+    assert len(entry.details["inputs_hash"]) == 64
     assert entry.entity_type == "document"
     assert entry.action == "document_upload"
 
@@ -250,6 +276,9 @@ async def test_log_clinical_decision_persists_with_hash_and_version():
     assert entry.details["model_version"] == "gpt-4o-mini@triage"
     assert "inputs_hash" in entry.details
     assert len(entry.details["inputs_hash"]) == 64
+    # Chain wiring
+    assert entry.previous_hash == "0" * 64
+    assert isinstance(entry.chain_hash, str) and len(entry.chain_hash) == 64
 
 
 async def test_triage_decision_logged():

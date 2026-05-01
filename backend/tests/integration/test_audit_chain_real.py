@@ -121,20 +121,16 @@ async def test_audit_created_at_is_monotonic(db_session, audit_user):
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    reason=(
-        "Hash chain (previous_hash field) not implemented yet — gap #4 from "
-        "security analysis. Remove xfail when the chain is added to "
-        "log_clinical_decision."
-    ),
-    strict=False,
-)
 async def test_audit_previous_hash_chain(db_session, audit_user):
     """
-    PLACEHOLDER — will pass once hash-chain (gap #4) is implemented.
+    Hash chain (gap #4) — tamper-evident chain across consecutive entries.
 
-    Each entry beyond the first should have a `previous_hash` in its details
-    pointing to the prior entry's `inputs_hash`, forming a tamper-evident chain.
+    Each row carries dedicated ``previous_hash`` / ``chain_hash`` columns
+    (not JSONB) so the chain has database-level NOT NULL guarantees and an
+    indexable lookup key.
+
+    Invariant: ``row[N].previous_hash == row[N-1].chain_hash``.
+    Detailed tests live in ``test_audit_chain.py``.
     """
     case_id = uuid.uuid4()
 
@@ -159,10 +155,7 @@ async def test_audit_previous_hash_chain(db_session, audit_user):
 
     for idx, row in enumerate(rows[1:], 1):
         prev = rows[idx - 1]
-        # Will fail until gap #4 is resolved.
-        assert "previous_hash" in row.details, (
-            f"Row {idx} must have 'previous_hash' linking to row {idx - 1}"
-        )
-        assert row.details["previous_hash"] == prev.details["inputs_hash"], (
-            "previous_hash must equal the prior row's inputs_hash"
+        assert row.previous_hash == prev.chain_hash, (
+            f"Row {idx} previous_hash must equal row {idx - 1} chain_hash. "
+            f"Got prev_hash={row.previous_hash!r}, want={prev.chain_hash!r}"
         )
