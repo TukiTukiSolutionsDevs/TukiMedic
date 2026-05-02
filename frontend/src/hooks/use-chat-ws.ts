@@ -102,14 +102,49 @@ export function useChatWS(): UseChatWSReturn {
           setActiveAgents((prev) => (prev.includes(agent) ? prev : [...prev, agent]))
           break
         }
+        case 'triage': {
+          // Backend may emit a dedicated triage frame with the resolved level
+          // and (when red) a list of red_flags that drove the decision.
+          const level = msg.level as TriageLevel | undefined
+          if (level) setTriageLevel(level)
+          if (level === 'red') {
+            const redFlags = (msg.red_flags as string[] | undefined) ?? []
+            setEscalationPayload({
+              caseId: msg.case_id as string | undefined,
+              redFlags,
+            })
+          }
+          break
+        }
+        case 'escalation': {
+          // Explicit escalation frame — overrides whatever triage said.
+          setTriageLevel('red')
+          setEscalationPayload({
+            caseId: msg.case_id as string | undefined,
+            redFlags: (msg.red_flags as string[] | undefined) ?? [],
+          })
+          break
+        }
         case 'token':
           appendToken(msg.content as string)
           break
-        case 'done':
+        case 'done': {
           commitStreamingMessage(msg.response as string, msg.case_id as string)
           setLoading(false)
           setAgentNode(null)
+          // Some backends piggyback triage on 'done' instead of a separate frame.
+          const doneTriage = msg.triage_level as TriageLevel | undefined
+          if (doneTriage) {
+            setTriageLevel(doneTriage)
+            if (doneTriage === 'red') {
+              setEscalationPayload({
+                caseId: msg.case_id as string | undefined,
+                redFlags: (msg.red_flags as string[] | undefined) ?? [],
+              })
+            }
+          }
           break
+        }
         case 'pong':
           // no-op — keep-alive acknowledged
           break
@@ -167,5 +202,8 @@ export function useChatWS(): UseChatWSReturn {
     connectionStatus,
     isConnected: connectionStatus === 'connected',
     disconnect,
+    activeAgents,
+    triageLevel,
+    escalationPayload,
   }
 }
