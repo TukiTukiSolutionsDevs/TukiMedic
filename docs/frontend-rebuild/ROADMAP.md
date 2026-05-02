@@ -12,40 +12,44 @@
 
 | Fase | Estado | Tests | Notas |
 |------|--------|-------|-------|
-| 0 — Design system | ⏳ Pending | — | tokens, fonts, theme, logo |
-| 1 — App Shell | ⏳ Pending | — | sidebar, topbar, layout |
-| 2 — Landing pública | ⏳ Pending | — | marketing pre-login |
-| 3 — Auth (login + register) | ⏳ Pending | 12 actuales | reusar lógica, repintar UI |
-| 4 — Dashboard | ⏳ Pending | — | home post-login con CTAs |
-| 5 — Chat clínico | ⏳ Pending | — | WebSocket real, escalation, agentes streaming |
-| 6 — History | ⏳ Pending | — | listado de casos, filtros |
-| 7 — Profile | ⏳ Pending | — | datos clínicos, GDPR delete |
-| 8 — Admin panel | ⏳ Pending | — | LLM creds, users, audit chain |
-| 9 — Escalation screen | ⏳ Pending | — | red flags → urgencias |
+| 0 — Design system | ✅ Done | 6 (Logo) | tokens y fonts ya estaban; faltaba `<Logo/>` |
+| 1 — App Shell | ✅ Done | 19 (nav-config + sidebar) | sidebar collapsable + user card + public route bypass |
+| 2 — Landing pública | ✅ Done | 15 (landing integration) | 10 secciones del prototipo migradas a `src/components/landing/` |
+| 3 — Auth (login + register) | ✅ Done | 17 (12 existentes + 5 nuevos) | split-screen, AuthLayout + PasswordField components |
+| 4 — Dashboard | ✅ Done | 11 nuevos (111 total) | greeting + recent cases + stats + quick actions |
+| 5 — Chat clínico | ✅ Done | 13 nuevos (124 total) | split + AgentsPanel + escalation redirect + sessionStorage payload |
+| 9 — Escalation screen | ✅ Done | 9 nuevos (134 total) | full-bleed alarm, sessionStorage payload, SAMU 106, hospitals link |
+| 6 — History | ✅ Done | 18 nuevos (152 total) | filter bar + search + pagination + tier-aware export |
+| 7 — Profile | ✅ Done | 18 nuevos (170 total) | 3-tab settings + delete account dialog |
+| 8 — Admin panel | ✅ Done | 33 nuevos (203 total) | SubNav strip + verify-chain + 4 repintados |
+| 9 — Escalation screen | 🚧 In progress (dependency of 5) | — | red flags → urgencias |
 | 10 — Polish + a11y | ⏳ Pending | — | dark mode, keyboard, focus |
 
 **Leyenda**: ⏳ Pending · 🚧 In progress · ✅ Done · ⚠️ Blocked
 
 ---
 
-## Fase 0 — Design system + assets
+## Fase 0 — Design system + assets ✅
 
 Base de tokens del prototipo migrada a Tailwind/CSS vars. Sin esto las pantallas se ven a Frankenstein.
 
 - [x] Logo copiado a `frontend/public/logo.png`
-- [ ] CSS variables `--tm-*` en `app/globals.css` (light + dark)
-- [ ] Fuentes Geist + Geist Mono + Instrument Serif via `next/font`
-- [ ] Theme provider (`data-theme="dark|light"`) con persistence en localStorage
-- [ ] Tailwind config: extender colores `tm-blue`, `tm-yellow`, triage greens/ambers/reds
-- [ ] Componente `<Logo />` reusable (con/sin texto, tamaños)
-- [ ] Test: theme toggle persiste reload
+- [x] CSS variables `--tm-*` en `src/app/globals.css` (light + dark) — ya existían
+- [x] Fuentes Geist + Geist Mono + Instrument Serif via `next/font` — ya wired en layout.tsx
+- [x] Theme provider con persistence en localStorage + script anti-FOUC — ya existía
+- [x] Componente `<Logo />` reusable — `src/components/logo.tsx` (6 tests passing, commit `2562232`)
+- [~] Tailwind config extend: NO requerido — Tailwind v4 lee CSS vars directo, las clases custom se hacen con `style={{ color: "var(--tm-blue-500)" }}` o utility classes inline
+- [~] Test theme persist reload: ya cubierto en `theme-provider.test.tsx` existente
 
-**Archivos esperados**:
-- `frontend/app/globals.css` — vars + reset
-- `frontend/app/layout.tsx` — fonts wired
-- `frontend/components/theme-provider.tsx`
-- `frontend/components/logo.tsx`
-- `frontend/tailwind.config.ts`
+**Archivos**:
+- `src/app/globals.css` — vars + reset (ya estaba)
+- `src/app/layout.tsx` — fonts wired (ya estaba)
+- `src/components/theme/theme-provider.tsx` (ya estaba)
+- `src/components/logo.tsx` ✨ NUEVO
+- `src/components/__tests__/logo.test.tsx` ✨ NUEVO
+
+**Discoveries Fase 0**:
+- El proyecto está bastante más adelantado que la session-summary sugería: el design system ya estaba bootstrapeado con los tokens del prototipo intactos. Esto baja el costo total estimado del rebuild de "semanas" a "días".
 
 ---
 
