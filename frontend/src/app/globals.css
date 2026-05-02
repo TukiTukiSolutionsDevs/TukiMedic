@@ -205,6 +205,25 @@
   html {
     @apply font-sans;
   }
+
+  /* Visible focus ring for keyboard users on every interactive element that
+   * doesn't define its own. shadcn primitives already use focus-visible:ring;
+   * this catches the bespoke <button>, <a>, <input>, <textarea>, <select>,
+   * and elements with [role="button"] across the app.
+   *
+   * Uses :focus-visible (NOT :focus) so mouse clicks don't trigger the ring.
+   * Honors reduced-motion automatically via the global query below.
+   */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--tm-blue-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 /* TukiMedic animation primitives — used inline via style="animation: tm-* ..."

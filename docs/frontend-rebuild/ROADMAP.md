@@ -22,8 +22,8 @@
 | 6 — History | ✅ Done | 18 nuevos (152 total) | filter bar + search + pagination + tier-aware export |
 | 7 — Profile | ✅ Done | 18 nuevos (170 total) | 3-tab settings + delete account dialog |
 | 8 — Admin panel | ✅ Done | 33 nuevos (203 total) | SubNav strip + verify-chain + 4 repintados |
-| 9 — Escalation screen | 🚧 In progress (dependency of 5) | — | red flags → urgencias |
-| 10 — Polish + a11y | ⏳ Pending | — | dark mode, keyboard, focus |
+| 9 — Escalation screen | ✅ Done | 9 nuevos (134 total) | full-bleed alarm, sessionStorage payload, SAMU 106, hospitals link |
+| 10 — Polish + a11y | ✅ Done (core) | 12 nuevos (215 total) | animations + error/loading boundaries + global focus ring + reduced-motion |
 
 **Leyenda**: ⏳ Pending · 🚧 In progress · ✅ Done · ⚠️ Blocked
 
@@ -216,18 +216,33 @@ Pantalla full-screen cuando triage=red. Mensaje claro de urgencias + número eme
 
 ---
 
-## Fase 10 — Polish + a11y
+## Fase 10 — Polish + a11y ✅ (core)
 
 Detalles que separan un MVP de un producto.
 
-- [ ] Dark mode pulido en TODAS las pantallas
-- [ ] Keyboard navigation completa (sin atrapar al usuario)
-- [ ] Focus rings consistentes
-- [ ] Loading skeletons (no spinners pelados)
-- [ ] Error boundaries en cada ruta
-- [ ] Animaciones del prototipo (`tm-fade-up`, shimmer, pulse-dot)
-- [ ] Lighthouse pass: a11y > 95, perf > 85
-- [ ] Tests E2E con Playwright (3 flows: login → chat → escalation)
+- [x] Animaciones del prototipo: keyframes `tm-pulse-dot`, `tm-fade-up`, `tm-fade-in`, `tm-shimmer`, `tm-spin`, `tm-cursor-blink`, `tm-bar-grow` + utility classes en `globals.css`
+- [x] `prefers-reduced-motion` global media query (todas las animations a 0.01ms)
+- [x] Error boundaries: `<ErrorScreen>` reusable + `app/error.tsx` (root) + `app/global-error.tsx` (catastrófico) — 8 tests
+- [x] Loading boundaries: `<LoadingScreen>` shimmer skeleton + `loading.tsx` para `/dashboard`, `/chat`, `/history`, `/settings`, `/admin` — 4 tests
+- [x] Focus rings consistentes: regla global `:focus-visible` en `globals.css` cubre buttons/links/inputs/textarea/select y `[role="button"]` — outline azul + offset
+- [x] Keyboard navigation auditada: AppShell sidebar usa `<Link>` y `<button>` (accesibles por default), aria-labels en collapse y logout
+- [~] Dark mode: tokens flippean correctamente; verificación visual completa requiere browser real (defer)
+- [ ] Lighthouse pass: a11y > 95, perf > 85 — DEFER (requiere browser real + setup CI)
+- [ ] Tests E2E con Playwright (3 flows: login → chat → escalation) — DEFER (requiere instalación + config + nuevo workflow)
+
+**Discoveries Fase 10**:
+- `tm-pulse-dot` se usaba en `escalation/page.tsx` SIN tener el `@keyframes` definido — bug latente que sólo se vería en browser, no en jsdom. Las animations ahora están todas definidas globalmente.
+- Tailwind v4 NO permite `@layer base { @keyframes ... }` — los keyframes deben vivir fuera del @layer porque son global rules CSS, no Tailwind tokens.
+- `:focus-visible` global rule cubre futuro código automáticamente; preferible a parchar 19 archivos manualmente.
+
+**Files Fase 10**:
+- `frontend/src/app/globals.css` — animations + reduced-motion + global focus-visible
+- `frontend/src/components/error-screen.tsx` ✨
+- `frontend/src/components/__tests__/error-screen.test.tsx` ✨
+- `frontend/src/app/error.tsx` ✨ + `frontend/src/app/global-error.tsx` ✨
+- `frontend/src/components/loading-screen.tsx` ✨
+- `frontend/src/components/__tests__/loading-screen.test.tsx` ✨
+- `frontend/src/app/{dashboard,chat,history,settings,admin}/loading.tsx` ✨
 
 ---
 
