@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth-store'
+import { AdminSubNav } from '@/components/admin/sub-nav'
 
 /**
  * Guard layout for all /admin routes.
@@ -13,17 +14,14 @@ import { useAuthStore } from '@/store/auth-store'
  *
  * - Unauthenticated → /login
  * - Authenticated but role != 'admin' → /chat
- * - Admin → render children
+ * - Admin → render sub-nav + children
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { isAuthenticated, user } = useAuthStore()
   const [ready, setReady] = useState(false)
 
-  // Signal that zustand has rehydrated from localStorage.
-  useEffect(() => {
-    setReady(true)
-  }, [])
+  useEffect(() => { setReady(true) }, [])
 
   useEffect(() => {
     if (!ready) return
@@ -38,5 +36,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return null
   }
 
-  return <>{children}</>
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <AdminSubNav />
+      {children}
+    </div>
+  )
 }
