@@ -206,3 +206,55 @@
     @apply font-sans;
   }
 }
+
+/* TukiMedic animation primitives — used inline via style="animation: tm-* ..."
+ * or via utility classes .tm-fade-up / .tm-fade-in. Keep these here (not in
+ * @theme) because @keyframes is global CSS, not a Tailwind v4 token.
+ */
+@keyframes tm-pulse-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes tm-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes tm-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tm-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tm-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes tm-bar-grow {
+  from { transform: scaleY(0.3); opacity: 0.5; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+.tm-fade-up { animation: tm-fade-up 0.4s ease-out; }
+.tm-fade-in { animation: tm-fade-in 0.3s ease-out; }
+.tm-pulse-dot { animation: tm-pulse-dot 1.4s ease-in-out infinite; }
+.tm-cursor-blink { animation: tm-cursor-blink 1s step-end infinite; }
+
+/* Respect users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
