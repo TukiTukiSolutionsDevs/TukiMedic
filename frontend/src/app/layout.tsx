@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { themeScript } from "@/components/theme/theme-provider";
+import { AppShell } from "@/components/app-shell/app-shell";
 import "./globals.css";
 
 const geist = Geist({
@@ -42,21 +43,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background antialiased">
         <ThemeProvider>
-          <div className="flex h-screen">
-            {/* Sidebar */}
-            <aside className="hidden w-64 border-r bg-muted/40 md:block">
-              <div className="flex h-14 items-center border-b px-4">
-                <h1 className="text-lg font-semibold">TukiMedic</h1>
-              </div>
-              <nav className="p-4 space-y-2">
-                <p className="text-sm text-muted-foreground">Casos recientes</p>
-                {/* Case list will go here */}
-              </nav>
-            </aside>
-
-            {/* Main content */}
-            <main className="flex-1 flex flex-col">{children}</main>
-          </div>
+          <AppShell>{children}</AppShell>
         </ThemeProvider>
       </body>
     </html>
