@@ -10,6 +10,10 @@
  * 4. 403 maps to "Cuenta deshabilitada"
  * 5. 429 maps to rate limit message
  * 6. network error maps to connectivity message
+ * 7. brand panel is rendered in the DOM
+ * 8. eye toggle reveals password input
+ * 9. link to register page is present
+ * 10. link back to home is present
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -63,10 +67,12 @@ const VALID_LOGIN_RESPONSE = {
   },
 }
 
+// { selector: 'input' } avoids ambiguity with the eye-toggle button whose
+// aria-label also contains "contraseña".
 async function fillAndSubmit(email: string, password: string) {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText(/email/i), email)
-  await user.type(screen.getByLabelText(/contraseña/i), password)
+  await user.type(screen.getByLabelText(/contraseña/i, { selector: 'input' }), password)
   await user.click(screen.getByRole('button', { name: /entrar/i }))
 }
 
@@ -148,5 +154,34 @@ describe('LoginPage', () => {
     expect(
       await screen.findByText(/no pudimos contactar al servidor/i),
     ).toBeInTheDocument()
+  })
+
+  it('brand panel is rendered in the DOM', () => {
+    render(<LoginPage />)
+    expect(screen.getByTestId('auth-brand-panel')).toBeInTheDocument()
+  })
+
+  it('eye toggle reveals password input', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: /mostrar contraseña/i }))
+    expect(passwordInput).toHaveAttribute('type', 'text')
+
+    await user.click(screen.getByRole('button', { name: /ocultar contraseña/i }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
+
+  it('link to register page is present', () => {
+    render(<LoginPage />)
+    expect(screen.getByRole('link', { name: /crear cuenta/i })).toBeInTheDocument()
+  })
+
+  it('link back to home is present via logo', () => {
+    render(<LoginPage />)
+    expect(screen.getByRole('link', { name: /tukimedic/i })).toBeInTheDocument()
   })
 })

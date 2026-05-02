@@ -1,10 +1,15 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type FormEvent } from 'react'
+import { Mail } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { AuthLayout } from '@/components/auth/auth-layout'
+import { PasswordField } from '@/components/auth/password-field'
 import { api, ApiError } from '@/lib/api'
 import { useAuthStore } from '@/store/auth-store'
 
@@ -117,50 +122,62 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center">
-      <div className="w-full max-w-sm space-y-6 p-8">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">Iniciar sesión</h1>
-          <p className="text-sm text-muted-foreground">
-            Ingresá tus credenciales para acceder
+    <AuthLayout>
+      <form onSubmit={handleSubmit} noValidate>
+        <div style={{ marginBottom: 32 }}>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Bienvenido de vuelta
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--tm-text-muted)', margin: '8px 0 0' }}>
+            Inicia sesión para continuar tu consulta.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="space-y-4">
+          {/* Email */}
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="tu@email.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-            />
+            <Label htmlFor="email">Email</Label>
+            <div className="relative">
+              <Mail
+                size={16}
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--tm-text-subtle)' }}
+              />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="tu@email.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                className="pl-9"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Contraseña
-            </label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-            />
-          </div>
+          {/* Password */}
+          <PasswordField
+            id="password"
+            name="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+            autoComplete="current-password"
+            minLength={8}
+          />
 
+          {/* Error */}
           {error && (
             <div
               role="alert"
@@ -179,9 +196,44 @@ function LoginForm() {
           >
             {loading ? 'Entrando…' : 'Entrar'}
           </Button>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-6">
+          <div className="flex-1 h-px" style={{ background: 'var(--tm-border)' }} />
+          <span className="text-xs" style={{ color: 'var(--tm-text-subtle)' }}>o</span>
+          <div className="flex-1 h-px" style={{ background: 'var(--tm-border)' }} />
+        </div>
+
+        {/* Register link */}
+        <p className="text-center text-sm" style={{ color: 'var(--tm-text-muted)' }}>
+          ¿Es tu primera vez?{' '}
+          <Link
+            href="/register"
+            className="font-medium underline-offset-4 hover:underline"
+            style={{ color: 'var(--tm-blue-600)' }}
+          >
+            Crear cuenta
+          </Link>
+        </p>
+
+        {/* Disclaimer */}
+        <div
+          className="mt-8 text-center text-xs leading-relaxed"
+          style={{
+            padding: 12,
+            background: 'var(--tm-bg-soft)',
+            borderRadius: 'var(--tm-radius-sm)',
+            color: 'var(--tm-text-subtle)',
+          }}
+        >
+          Al ingresar aceptás que TukiMedic{' '}
+          <strong style={{ color: 'var(--tm-text-muted)' }}>no diagnostica ni receta</strong> —
+          es orientación. En emergencia, llamá al{' '}
+          <strong style={{ color: 'var(--tm-red-600)' }}>106 / SAMU</strong>.
+        </div>
+      </form>
+    </AuthLayout>
   )
 }
 

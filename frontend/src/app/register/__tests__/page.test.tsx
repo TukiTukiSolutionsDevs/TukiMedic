@@ -47,8 +47,42 @@ describe('RegisterPage', () => {
     const user = userEvent.setup()
     render(<RegisterPage />)
     await user.type(screen.getByLabelText(/email/i), 'existing@test.com')
-    await user.type(screen.getByLabelText(/contraseña/i), 'password123')
+    // { selector: 'input' } avoids conflict with eye-toggle button aria-label
+    await user.type(screen.getByLabelText(/contraseña/i, { selector: 'input' }), 'password123')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/ya está registrado/i)
+  })
+
+  it('brand panel is rendered in the DOM', () => {
+    render(<RegisterPage />)
+    expect(screen.getByTestId('auth-brand-panel')).toBeInTheDocument()
+  })
+
+  it('eye toggle reveals password input', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    const passwordInput = screen.getByLabelText(/contraseña/i, { selector: 'input' })
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: /mostrar contraseña/i }))
+    expect(passwordInput).toHaveAttribute('type', 'text')
+
+    await user.click(screen.getByRole('button', { name: /ocultar contraseña/i }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
+
+  it('password strength indicator appears when password is typed', async () => {
+    const user = userEvent.setup()
+    render(<RegisterPage />)
+
+    expect(screen.queryByTestId('pwd-strength')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText(/contraseña/i, { selector: 'input' }), 'abc')
+    expect(screen.getByTestId('pwd-strength')).toBeInTheDocument()
+  })
+
+  it('link to login page is present', () => {
+    render(<RegisterPage />)
+    expect(screen.getByRole('link', { name: /iniciá sesión/i })).toBeInTheDocument()
   })
 })
