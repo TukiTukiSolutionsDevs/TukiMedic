@@ -31,6 +31,10 @@ describe("nav-config", () => {
     expect(isPublicRoute("/register")).toBe(true);
   });
 
+  it("treats /escalation as full-bleed (bypasses sidebar)", () => {
+    expect(isPublicRoute("/escalation")).toBe(true);
+  });
+
   it("does NOT treat app routes as public", () => {
     expect(isPublicRoute("/dashboard")).toBe(false);
     expect(isPublicRoute("/chat")).toBe(false);

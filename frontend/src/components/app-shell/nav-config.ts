@@ -40,13 +40,16 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Routes that render WITHOUT the sidebar shell (landing + auth).
- * Anything else implicitly gets the sidebar.
+ * Routes that render WITHOUT the sidebar shell.
+ * Includes both public (landing + auth) and full-bleed authenticated screens
+ * like /escalation that need the entire viewport.
  */
 export const PUBLIC_ROUTES = new Set<string>(["/", "/login", "/register"]);
+export const FULL_BLEED_ROUTES = new Set<string>(["/escalation"]);
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;
+  if (FULL_BLEED_ROUTES.has(pathname)) return true;
   // future: /verify-email, /reset-password, etc.
   return false;
 }
