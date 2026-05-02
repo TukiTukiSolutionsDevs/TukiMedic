@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth-store'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,15 +13,27 @@ import { LogOut } from 'lucide-react'
 
 export function AccountTab() {
   const router = useRouter()
+  const hydrated = useHydrated()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
-  const [displayName, setDisplayName] = useState(user?.displayName ?? '')
+  const [displayName, setDisplayName] = useState('')
+
+  // Sync the local form state once auth-store has rehydrated from localStorage.
+  useEffect(() => {
+    if (hydrated && user?.displayName != null) {
+      setDisplayName(user.displayName)
+    }
+  }, [hydrated, user?.displayName])
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  const isPaid = user?.subscriptionTier === 'paid'
+  // After hydration the store has the persisted user; on the server-rendered
+  // pass it is null. Reading user.* before hydration would diverge between
+  // the two passes -> React #418.
+  const isPaid = hydrated && user?.subscriptionTier === 'paid'
+  const userEmail = hydrated ? (user?.email ?? '') : ''
 
   function handleSaveName() {
     // TODO: PATCH /api/v1/auth/me { display_name }
@@ -62,7 +75,7 @@ export function AccountTab() {
             <Input
               id="email"
               type="email"
-              value={user?.email ?? ''}
+              value={userEmail}
               readOnly
             />
             <p className="text-xs text-muted-foreground">

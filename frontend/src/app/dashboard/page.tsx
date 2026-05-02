@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth-store'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { TierUpgradeBanner } from '@/components/tier-upgrade-banner'
 import { Greeting } from '@/components/dashboard/greeting'
 import { RecentCases, type DashboardCase } from '@/components/dashboard/recent-cases'
@@ -57,6 +58,7 @@ const MOCK_CASES: DashboardCase[] = [
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user)
+  const hydrated = useHydrated()
   const [cases, setCases] = useState<DashboardCase[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -83,23 +85,27 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const isPaid = user?.subscriptionTier === 'paid'
+  const isPaid = hydrated && user?.subscriptionTier === 'paid'
+  const showUpgradeBanner = hydrated && user && !isPaid
 
   return (
     <div className="flex-1 overflow-auto p-6 space-y-8">
       <div className="flex items-start justify-between gap-4">
-        {user && (
+        {hydrated && user ? (
           <Greeting
             displayName={user.displayName}
             email={user.email}
           />
+        ) : (
+          // Stable placeholder until auth-store rehydrates from localStorage.
+          <div className="h-10" aria-hidden />
         )}
         <a href="/chat">
           <Button size="lg">Nueva consulta</Button>
         </a>
       </div>
 
-      {!isPaid && user && (
+      {showUpgradeBanner && user && (
         <TierUpgradeBanner
           requiredTier="paid"
           currentTier={user.subscriptionTier}

@@ -74,13 +74,13 @@ describe('UserTable', () => {
   it('calls PATCH with new tier on tier select change', async () => {
     const mockFetch = stubFetch([
       { ok: true, body: { items: mockUsers, total: 2 } },
-      { ok: true, body: { ...mockUsers[1], subscription_tier: 'pro' } },
+      { ok: true, body: { ...mockUsers[1], subscription_tier: 'paid' } },
     ])
     render(<UserTable />)
     await waitFor(() => screen.getByTestId('tier-select-user-2'))
 
     fireEvent.change(screen.getByTestId('tier-select-user-2'), {
-      target: { value: 'pro' },
+      target: { value: 'paid' },
     })
 
     await waitFor(() =>
@@ -88,7 +88,7 @@ describe('UserTable', () => {
         expect.stringContaining('/admin/users/user-2'),
         expect.objectContaining({
           method: 'PATCH',
-          body: JSON.stringify({ subscription_tier: 'pro' }),
+          body: JSON.stringify({ subscription_tier: 'paid' }),
         }),
       ),
     )
@@ -118,18 +118,18 @@ describe('UserTable', () => {
   it('updates the row after a successful patch', async () => {
     stubFetch([
       { ok: true, body: { items: mockUsers, total: 2 } },
-      { ok: true, body: { ...mockUsers[1], subscription_tier: 'enterprise' } },
+      { ok: true, body: { ...mockUsers[1], subscription_tier: 'paid' } },
     ])
     render(<UserTable />)
     await waitFor(() => screen.getByTestId('tier-select-user-2'))
 
     fireEvent.change(screen.getByTestId('tier-select-user-2'), {
-      target: { value: 'enterprise' },
+      target: { value: 'paid' },
     })
 
     await waitFor(() => {
       const select = screen.getByTestId('tier-select-user-2') as HTMLSelectElement
-      expect(select.value).toBe('enterprise')
+      expect(select.value).toBe('paid')
     })
   })
 })

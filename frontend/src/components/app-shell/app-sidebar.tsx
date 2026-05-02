@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -133,13 +133,22 @@ function UserCard({ collapsed, onLogout }: UserCardProps) {
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  // Zustand persist rehydrates AFTER first client render. Without this gate,
+  // SSR renders without the user (admin item hidden, UserCard absent) but
+  // the client render after hydration shows them, triggering React #418.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.requiresRole || user?.role === item.requiresRole,
+    (item) =>
+      !item.requiresRole || (mounted && user?.role === item.requiresRole),
   );
 
   function handleLogout() {
@@ -189,7 +198,9 @@ export function AppSidebar() {
       </nav>
 
       <div className="border-t p-3">
-        <UserCard collapsed={collapsed} onLogout={handleLogout} />
+        {mounted && (
+          <UserCard collapsed={collapsed} onLogout={handleLogout} />
+        )}
         <div
           className={cn(
             "mt-2 flex gap-1.5",

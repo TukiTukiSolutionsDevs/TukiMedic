@@ -6,7 +6,9 @@ import { useAuthStore } from '@/store/auth-store'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const PAGE_SIZE = 20
-const TIERS = ['free', 'pro', 'enterprise']
+// Backend AdminUserPatch validates subscription_tier in {'free', 'paid'}.
+// Anything else returns 422.
+const TIERS = ['free', 'paid'] as const
 
 interface AdminUser {
   id: string
