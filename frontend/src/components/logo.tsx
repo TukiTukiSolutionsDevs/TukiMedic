@@ -40,7 +40,11 @@ export function Logo({
         width={size}
         height={size}
         priority
-        className="rounded-md"
+        // Bypass /_next/image optimization — the source PNG is hand-crafted
+        // and lives in /public; running it through the optimizer causes
+        // 4xx responses for large source files in standalone mode.
+        unoptimized
+        className="rounded-md object-contain"
       />
       {showText && (
         <span
