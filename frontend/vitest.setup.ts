@@ -56,6 +56,12 @@ Object.defineProperty(window, 'sessionStorage', {
   configurable: true,
 })
 
+// jsdom does not implement scrollIntoView. Several chat components call it on
+// auto-scroll; stub to a no-op so tests don't crash.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {}
+}
+
 beforeEach(() => {
   memLocal.clear()
   memSession.clear()

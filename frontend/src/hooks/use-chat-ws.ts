@@ -9,11 +9,23 @@ const WS_ENDPOINT = `${WS_BASE}/api/v1/chat/ws`
 const BACKOFF_MS = [1000, 2000, 4000, 8000, 30000]
 const PING_INTERVAL_MS = 25_000
 
+export type TriageLevel = 'green' | 'yellow' | 'red'
+
+export interface EscalationPayload {
+  caseId?: string
+  redFlags: string[]
+}
+
 export interface UseChatWSReturn {
+  // Existing exports (unchanged)
   sendMessage: (content: string, caseId?: string | null) => void
   connectionStatus: ConnectionStatus
   isConnected: boolean
   disconnect: () => void
+  // Additive
+  activeAgents: string[]
+  triageLevel: TriageLevel | null
+  escalationPayload: EscalationPayload | null
 }
 
 export function useChatWS(): UseChatWSReturn {
@@ -23,6 +35,9 @@ export function useChatWS(): UseChatWSReturn {
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [connectionStatus, setLocalStatus] = useState<ConnectionStatus>('disconnected')
+  const [activeAgents, setActiveAgents] = useState<string[]>([])
+  const [triageLevel, setTriageLevel] = useState<TriageLevel | null>(null)
+  const [escalationPayload, setEscalationPayload] = useState<EscalationPayload | null>(null)
 
   const accessToken = useAuthStore((s) => s.accessToken)
   const {
@@ -81,9 +96,12 @@ export function useChatWS(): UseChatWSReturn {
           setStatus('connected')
           startPing(ws)
           break
-        case 'agent_start':
-          setAgentNode(msg.agent as string)
+        case 'agent_start': {
+          const agent = msg.agent as string
+          setAgentNode(agent)
+          setActiveAgents((prev) => (prev.includes(agent) ? prev : [...prev, agent]))
           break
+        }
         case 'token':
           appendToken(msg.content as string)
           break

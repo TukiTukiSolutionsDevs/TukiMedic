@@ -1,242 +1,210 @@
-'use client'
+"use client";
 
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { useChatWS } from '@/hooks/use-chat-ws'
-import { useDocumentUpload } from '@/hooks/use-document-upload'
-import { useChatStore, type ConnectionStatus } from '@/store/chat-store'
-import { useAuthStore } from '@/store/auth-store'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useChatWS } from "@/hooks/use-chat-ws";
+import { useDocumentUpload } from "@/hooks/use-document-upload";
+import { useChatStore, type ConnectionStatus } from "@/store/chat-store";
+import { useAuthStore } from "@/store/auth-store";
+import { Conversation } from "@/components/chat/conversation";
+import { AgentsPanel } from "@/components/chat/agents-panel";
+import { TriageStatus } from "@/components/chat/triage-status";
+import { ChatInput } from "@/components/chat/chat-input";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const AGENT_LABELS: Record<string, string> = {
-  triage: 'Triage',
-  anamnesis: 'Anamnesis',
-  classifier: 'Clasificador',
-  general_medicine: 'Medicina General',
-  medical_board: 'Mesa Médica',
-  devils_advocate: 'Abogado del Diablo',
-  guardrail: 'Guardrail',
-  synthesizer: 'Síntesis',
-}
-
-const STATUS_CONFIG: Record<ConnectionStatus, { dot: string; label: string }> = {
-  disconnected: { dot: 'bg-gray-400', label: 'Desconectado' },
-  connecting: { dot: 'bg-yellow-400 animate-pulse', label: 'Conectando...' },
-  authenticating: { dot: 'bg-yellow-400 animate-pulse', label: 'Autenticando...' },
-  connected: { dot: 'bg-green-500', label: 'Conectado' },
-  error: { dot: 'bg-red-500', label: 'Error de conexión' },
-}
+const STATUS_CONFIG: Record<ConnectionStatus, { dot: string; label: string }> =
+  {
+    disconnected: { dot: "bg-gray-400", label: "Desconectado" },
+    connecting: { dot: "bg-amber-400 animate-pulse", label: "Conectando..." },
+    authenticating: {
+      dot: "bg-amber-400 animate-pulse",
+      label: "Autenticando...",
+    },
+    connected: { dot: "bg-green-500", label: "Conectado" },
+    error: { dot: "bg-red-500", label: "Error de conexión" },
+  };
 
 function ConnectionBadge({ status }: { status: ConnectionStatus }) {
-  const { dot, label } = STATUS_CONFIG[status]
+  const { dot, label } = STATUS_CONFIG[status];
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div
+      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      data-testid="connection-badge"
+    >
       <span className={`h-2 w-2 rounded-full ${dot}`} />
       {label}
     </div>
-  )
+  );
 }
 
 export default function ChatPage() {
-  const { sendMessage, connectionStatus } = useChatWS()
-  const { uploadDocument, isUploading, uploadError, lastUploadedDoc } = useDocumentUpload()
-  const { accessToken } = useAuthStore()
+  const router = useRouter();
+  const {
+    sendMessage,
+    connectionStatus,
+    triageLevel,
+    escalationPayload,
+  } = useChatWS();
+  const {
+    uploadDocument,
+    isUploading,
+    uploadError,
+    lastUploadedDoc,
+  } = useDocumentUpload();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const subscriptionTier = useAuthStore(
+    (s) => s.user?.subscriptionTier ?? "free",
+  );
   const {
     messages,
     streamingMessage,
     isLoading,
     currentAgentNode,
     currentCaseId,
-  } = useChatStore()
+  } = useChatStore();
 
-  const [input, setInput] = useState('')
-  const [exportingPdf, setExportingPdf] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  // Escalation: when the WS reports a red triage with red flags, persist the
+  // payload to sessionStorage and redirect to /escalation. We do NOT block
+  // the chat — the user is shown the urgent screen but can come back.
+  useEffect(() => {
+    if (triageLevel === "red" && escalationPayload) {
+      try {
+        sessionStorage.setItem(
+          "tm-escalation",
+          JSON.stringify({
+            ...escalationPayload,
+            caseId: escalationPayload.caseId ?? currentCaseId ?? null,
+            at: new Date().toISOString(),
+          }),
+        );
+      } catch {
+        // sessionStorage may be unavailable in some browsers/private mode.
+      }
+      router.push("/escalation");
+    }
+  }, [triageLevel, escalationPayload, currentCaseId, router]);
 
   const handleExportPdf = useCallback(async () => {
-    if (!currentCaseId || !accessToken) return
-    setExportingPdf(true)
+    if (!currentCaseId || !accessToken) return;
+    setExportingPdf(true);
     try {
-      const r = await fetch(`${API}/api/v1/cases/${currentCaseId}/export/pdf`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!r.ok) throw new Error('Error al generar PDF')
-      const blob = await r.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `case_${currentCaseId}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      const r = await fetch(
+        `${API}/api/v1/cases/${currentCaseId}/export/pdf`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (!r.ok) throw new Error("Error al generar PDF");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `case_${currentCaseId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error(err)
+      console.error(err);
     } finally {
-      setExportingPdf(false)
+      setExportingPdf(false);
     }
-  }, [currentCaseId, accessToken])
+  }, [currentCaseId, accessToken]);
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    uploadDocument(file, currentCaseId ?? undefined)
-    e.target.value = ''
-  }
+  const handleSend = useCallback(
+    (content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed || connectionStatus !== "connected" || isLoading) return;
+      sendMessage(trimmed, currentCaseId);
+    },
+    [sendMessage, connectionStatus, isLoading, currentCaseId],
+  );
 
-  // Auto-scroll to bottom on new content
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingMessage])
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      uploadDocument(file, currentCaseId ?? undefined);
+    },
+    [uploadDocument, currentCaseId],
+  );
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    const trimmed = input.trim()
-    if (!trimmed || connectionStatus !== 'connected' || isLoading) return
-    sendMessage(trimmed, currentCaseId)
-    setInput('')
-  }
+  const handlePromptFromExample = useCallback(
+    (text: string) => handleSend(text),
+    [handleSend],
+  );
 
-  const isDisabled = connectionStatus !== 'connected' || isLoading
+  const isInputDisabled = connectionStatus !== "connected" || isLoading;
+  const isPaidTier = subscriptionTier === "paid";
 
   return (
-    <div className="flex flex-1 flex-col">
-      {/* Header */}
+    <div
+      data-testid="chat-page"
+      className="flex flex-1 flex-col bg-[var(--tm-bg)]"
+    >
       <header className="flex h-14 items-center justify-between border-b px-4">
-        <h2 className="font-semibold">Nueva consulta</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-semibold">Nueva consulta</h2>
+          <TriageStatus level={triageLevel} isActive={isLoading} />
+        </div>
         <div className="flex items-center gap-3">
           {currentCaseId && (
             <button
+              type="button"
               onClick={handleExportPdf}
               disabled={exportingPdf}
-              title="Exportar caso como PDF"
-              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50 transition-colors"
+              data-testid="export-pdf"
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
             >
-              {exportingPdf ? '⏳ Generando…' : '📄 Exportar PDF'}
+              {exportingPdf ? "Generando..." : "Exportar PDF"}
             </button>
           )}
           <ConnectionBadge status={connectionStatus} />
         </div>
       </header>
 
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && streamingMessage === null && (
-          <p className="text-center text-sm text-muted-foreground">
-            Describe tus síntomas para comenzar el análisis
-          </p>
-        )}
-
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[75%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
-                msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground'
-              }`}
-            >
-              {msg.content}
-            </div>
-          </div>
-        ))}
-
-        {/* Streaming partial message */}
-        {streamingMessage !== null && (
-          <div className="flex justify-start">
-            <div className="max-w-[75%] rounded-lg bg-muted px-4 py-2 text-sm text-foreground whitespace-pre-wrap">
-              {streamingMessage}
-              <span className="ml-1 inline-block h-3 w-0.5 animate-pulse bg-current align-middle" />
-            </div>
-          </div>
-        )}
-
-        {/* Agent activity indicator */}
-        {isLoading && currentAgentNode && (
-          <div className="flex justify-start">
-            <div className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
-              🔍 {AGENT_LABELS[currentAgentNode] ?? currentAgentNode} analizando...
-            </div>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input area */}
-      <div className="border-t p-4">
-        {/* Upload status feedback */}
-        {isUploading && (
-          <p className="mb-2 text-xs text-muted-foreground">📎 Subiendo archivo...</p>
-        )}
-        {uploadError && (
-          <p className="mb-2 text-xs text-red-500">⚠️ {uploadError}</p>
-        )}
-        {lastUploadedDoc && !isUploading && (
-          <p className="mb-2 text-xs text-green-600">
-            ✅ Archivo subido — procesando en segundo plano
-          </p>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="hidden"
-            onChange={handleFileSelect}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-w-0 flex-col">
+          <Conversation
+            messages={messages}
+            streamingMessage={streamingMessage}
+            isLoading={isLoading}
+            currentAgentNode={currentAgentNode}
+            onPrompt={handlePromptFromExample}
+            onDownloadPdf={currentCaseId ? handleExportPdf : undefined}
           />
 
-          {/* Paperclip button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            title="Adjuntar documento (PDF, JPG, PNG)"
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
+          <div className="border-t p-3">
+            {uploadError && (
+              <p
+                data-testid="upload-error"
+                className="mb-2 text-xs text-[var(--tm-red-600)]"
+              >
+                {uploadError}
+              </p>
+            )}
+            {lastUploadedDoc && !isUploading && !uploadError && (
+              <p
+                data-testid="upload-success"
+                className="mb-2 text-xs text-[var(--tm-green-700)]"
+              >
+                Archivo subido — procesando en segundo plano
+              </p>
+            )}
+            <ChatInput
+              onSend={handleSend}
+              onFileSelect={handleFileSelect}
+              disabled={isInputDisabled}
+              isPaidTier={isPaidTier}
+              isUploading={isUploading}
+            />
+          </div>
+        </div>
 
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSubmit(e as unknown as FormEvent)
-              }
-            }}
-            disabled={isDisabled}
-            placeholder={
-              connectionStatus !== 'connected'
-                ? 'Conectando...'
-                : 'Describe tus síntomas... (Enter para enviar, Shift+Enter para nueva línea)'
-            }
-            rows={3}
-            className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <Button type="submit" disabled={isDisabled || !input.trim()}>
-            {isLoading ? 'Procesando...' : 'Enviar'}
-          </Button>
-        </form>
+        <AgentsPanel
+          currentAgent={currentAgentNode}
+          isLoading={isLoading}
+        />
       </div>
     </div>
-  )
+  );
 }
